@@ -697,6 +697,15 @@
             navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration error', err));
           }
         });
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") {
+                loadCloudData();
+            }
+        });
+
+        setInterval(() => {
+            loadCloudData();
+        }, 10000);
 
         return {
           activeTab, manageType, filterMonth, appData, form, budgetEdit, newCatName, editModal,
