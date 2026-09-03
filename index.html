@@ -38,7 +38,6 @@
         .sync-btn:hover {
             background-color: #357abd;
         }
-        /* 分類按鈕樣式 */
         .category-filters {
             display: flex;
             gap: 8px;
@@ -59,7 +58,6 @@
             color: white;
             border-color: #4a90e2;
         }
-        /* 卡片清單樣式 */
         .card-list {
             display: flex;
             flex-direction: column;
@@ -105,7 +103,6 @@
         <button class="sync-btn" onclick="fetchDreams()">☁️ 同步資料</button>
     </header>
 
-    <!-- 分類過濾按鈕區塊 -->
     <div class="category-filters">
         <button class="filter-btn active" onclick="filterCategory('全部', this)">全部</button>
         <button class="filter-btn" onclick="filterCategory('異象', this)">異象異夢</button>
@@ -114,7 +111,6 @@
         <button class="filter-btn" onclick="filterCategory('已完全成就', this)">已完全成就</button>
     </div>
 
-    <!-- 資料顯示清單 -->
     <div id="cardList" class="card-list">
         <div style="text-align: center; color: #888; padding: 40px;">請點擊右上角「同步資料」載入記錄</div>
     </div>
@@ -124,7 +120,6 @@
     let originalData = [];
     const databaseUrl = "https://revelation-sync-default-rtdb.firebaseio.com/.json";
 
-    // 從 Firebase 載入資料
     async function fetchDreams() {
         const cardList = document.getElementById('cardList');
         cardList.innerHTML = `<div style="text-align: center; color: #888; padding: 40px;">同步中...</div>`;
@@ -134,13 +129,13 @@
             const data = await response.json();
             
             if (data) {
-                // 將 Firebase 的物件轉換成陣列
-                originalData = Object.keys(data).map(key => ({
-                    firebaseKey: key,
-                    ...data[key]
-                }));
+                originalData = Object.keys(data)
+                    .map(key => ({
+                        firebaseKey: key,
+                        ...data[key]
+                    }))
+                    .filter(item => item && item.title); // 自動排除空白或格式錯誤的資料
                 
-                // 預設顯示全部
                 renderDreams(originalData);
             } else {
                 cardList.innerHTML = `<div style="text-align: center; color: #888; padding: 40px;">目前沒有資料</div>`;
@@ -151,7 +146,6 @@
         }
     }
 
-    // 渲染卡片到畫面上
     function renderDreams(items) {
         const cardList = document.getElementById('cardList');
         if (items.length === 0) {
@@ -172,9 +166,8 @@
         `).join('');
     }
 
-    // 點擊分類按鈕過濾資料
     function filterCategory(category, btnElement) {
-        document.querySelectorAll('.filter-btn').forEach(b => b.classList.0 && b.classList.remove('active') || b.classList.remove('active'));
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
         btnElement.classList.add('active');
 
         if (category === '全部') {
@@ -191,7 +184,6 @@
         renderDreams(filtered);
     }
 
-    // 網頁開啟時自動同步一次
     window.onload = function() {
         fetchDreams();
     };
