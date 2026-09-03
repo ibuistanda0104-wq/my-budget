@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>靈程手帳 ‧ 異象啟示錄</title>
+  <title>領受神心意代求手帳</title>
 
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="靈程手帳">
-  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3247/3247295.png">
-  <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3247/3247295.png">
+  <meta name="apple-mobile-web-app-title" content="代求手帳">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2232/2232688.png">
+  <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/2232/2232688.png">
 
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -29,8 +29,8 @@
     <!-- 頂部 Header -->
     <header class="bg-blue-600 text-white pt-safe pb-3.5 px-4 shadow-md sticky top-0 z-30">
       <div class="flex items-center justify-between mt-2">
-        <h1 class="text-lg font-bold tracking-wide flex items-center gap-2">
-          <span>🕊️</span> 靈程手帳 ‧ 異象啟示
+        <h1 class="text-base font-bold tracking-wide flex items-center gap-1.5">
+          <span>🕊️</span> 領受神心意代求手帳
         </h1>
         <div class="flex items-center gap-2">
           <button onclick="syncCloud(true)" id="syncBtn" class="text-xs bg-blue-700 active:bg-blue-800 px-2.5 py-1 rounded-full border border-blue-400 font-bold">
@@ -51,7 +51,7 @@
         <div class="bg-white rounded-3xl p-4 shadow-sm border-doodle space-y-3.5">
           <div class="flex justify-between items-center border-b border-blue-50 pb-2">
             <h2 class="text-base font-bold text-blue-600 flex items-center gap-1.5">
-              <span>✍️</span> 寫下靈程便籤
+              <span>✍️</span> 寫下代求與領受便籤
             </h2>
             <button onclick="resetForm()" class="text-xs text-slate-400 hover:text-slate-600">↺ 清空</button>
           </div>
@@ -82,7 +82,7 @@
 
           <div>
             <label class="text-xs font-bold text-slate-600 mb-1 block">領受主題標題 ✏️</label>
-            <input type="text" id="inpTitle" placeholder="請輸入標題（例：金鑰匙與敞開的門）" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800">
+            <input type="text" id="inpTitle" placeholder="請輸入標題（例：為國家與教會代求）" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800">
           </div>
 
           <div>
@@ -97,12 +97,12 @@
 
           <div>
             <label class="text-xs font-bold text-slate-600 mb-1 block">看見 / 聽見之領受細節 💬</label>
-            <textarea id="inpContent" rows="3" placeholder="請詳細記錄看見的異象、夢境情節..." class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm"></textarea>
+            <textarea id="inpContent" rows="3" placeholder="請詳細記錄看見的異象、夢境或代禱負擔..." class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm"></textarea>
           </div>
 
           <div>
             <label class="text-xs font-bold text-slate-600 mb-1 block">禱告察驗、解讀與後續印證 🕊️</label>
-            <textarea id="inpInterp" rows="2" placeholder="後續默想領會、長輩印證或生活應驗..." class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm"></textarea>
+            <textarea id="inpInterp" rows="2" placeholder="後續默想領會、長輩印證或代求成就..." class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm"></textarea>
           </div>
 
           <div>
@@ -115,7 +115,7 @@
           </div>
 
           <button onclick="saveEntry()" class="w-full py-3.5 bg-blue-600 active:bg-blue-700 text-white rounded-2xl text-base font-bold shadow-md transition">
-            💾 珍藏這筆領受記錄 (同步雲端)
+            💾 珍藏這筆代求記錄 (同步雲端)
           </button>
         </div>
       </div>
@@ -234,7 +234,7 @@
     <div id="editModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end justify-center hidden" onclick="document.getElementById('editModal').classList.add('hidden')">
       <div class="bg-white w-full max-w-md rounded-t-3xl p-5 space-y-3 max-h-[90vh] overflow-y-auto shadow-2xl" onclick="event.stopPropagation()">
         <div class="flex justify-between items-center border-b pb-2">
-          <h3 class="font-bold text-slate-800 text-base">✏️ 修改靈程記錄</h3>
+          <h3 class="font-bold text-slate-800 text-base">✏️ 修改代求記錄</h3>
           <button onclick="document.getElementById('editModal').classList.add('hidden')" class="text-slate-400 text-lg font-bold">✕</button>
         </div>
 
@@ -377,7 +377,7 @@
     async function saveEntry() {
       const title = document.getElementById('inpTitle').value.trim();
       if (!title) {
-        alert('請填寫領受標題唷！🌟');
+        alert('請填寫代求標題唷！🌟');
         return;
       }
 
@@ -397,7 +397,7 @@
       entries.unshift(newItem);
       await saveStorageAndCloud();
       resetForm();
-      alert('✨ 靈程便籤已珍藏並同步！');
+      alert('✨ 代求便籤已珍藏並同步！');
       switchTab('history');
     }
 
@@ -412,7 +412,7 @@
       );
 
       if (filtered.length === 0) {
-        listEl.innerHTML = `<div class="bg-white rounded-3xl p-8 text-center text-slate-400 text-sm border-doodle">尚無相符的靈程記錄 🍃</div>`;
+        listEl.innerHTML = `<div class="bg-white rounded-3xl p-8 text-center text-slate-400 text-sm border-doodle">尚無相符的代求記錄 🍃</div>`;
         return;
       }
 
