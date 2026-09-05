@@ -3,279 +3,717 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>智慧歌詞與寫歌工坊</title>
+  <title>個人預算收支管理</title>
+
+  <!-- PWA 標籤設定 -->
+  <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2563eb">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="記帳App">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2936/2936758.png">
+
+  <!-- Tailwind CSS & Vue 3 & Chart.js -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <!-- Mammoth.js 用於前端直接解析 Word .docx 檔案 -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
-    body { -webkit-tap-highlight-color: transparent; user-select: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    input, textarea, select { user-select: auto; }
-    .chord { color: #2563eb; font-weight: bold; background: #eff6ff; padding: 0 4px; border-radius: 4px; font-size: 0.9em; margin: 0 2px; }
+    body {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    input, textarea, select {
+      user-select: auto;
+    }
+    .pb-safe {
+      padding-bottom: env(safe-area-inset-bottom, 16px);
+    }
+    .pt-safe {
+      padding-top: env(safe-area-inset-top, 16px);
+    }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 antialiased flex flex-col min-h-screen">
-  <div id="app" class="flex-1 flex flex-col max-w-md mx-auto w-full bg-slate-50 shadow-2xl relative"
-       @dragover.prevent @drop.prevent="handleFileDrop">
+  <div id="app" class="flex-1 flex flex-col max-w-md mx-auto w-full bg-slate-50 shadow-2xl relative">
 
     <!-- 頂部 Header -->
-    <header class="bg-slate-900 text-white pt-6 pb-4 px-4 shadow-md sticky top-0 z-30">
-      <div class="flex items-center justify-between">
-        <h1 class="text-lg font-bold tracking-wide flex items-center gap-2">
-          <span>🎵</span> 智慧歌詞與寫歌工坊
+    <header class="bg-blue-600 text-white pt-safe pb-4 px-4 shadow-md sticky top-0 z-30">
+      <div class="flex items-center justify-between mt-2">
+        <h1 class="text-xl font-bold tracking-wide flex items-center gap-2">
+          <span>📊</span> 個人預算收支
         </h1>
-        <button @click="exportJSON" class="text-xs bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1.5 rounded-lg font-medium">備份</button>
+        <div class="flex items-center gap-2">
+          <button @click="loadCloudData(true)" class="bg-blue-700 active:bg-blue-800 text-white text-xs px-2.5 py-1.5 rounded-lg border border-blue-400">
+            🔄 同步
+          </button>
+          <input type="month" v-model="filterMonth" class="bg-blue-700 text-white text-xs font-semibold px-2 py-1.5 rounded-lg border border-blue-400 focus:outline-none">
+        </div>
+      </div>
+
+      <!-- 統計看板卡片 -->
+      <div class="grid grid-cols-2 gap-2 mt-4">
+        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 border border-white/20">
+          <div class="text-[11px] text-blue-100">本月總收入</div>
+          <div class="text-base font-bold text-emerald-300">NT$ {{ formatNumber(monthlyIncome) }}</div>
+        </div>
+        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 border border-white/20">
+          <div class="text-[11px] text-blue-100">本月總支出</div>
+          <div class="text-base font-bold text-rose-300">NT$ {{ formatNumber(monthlyExpense) }}</div>
+        </div>
+        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 border border-white/20">
+          <div class="text-[11px] text-blue-100">本月結餘</div>
+          <div class="text-base font-bold" :class="monthlyBalance >= 0 ? 'text-white' : 'text-rose-300'">
+            NT$ {{ formatNumber(monthlyBalance) }}
+          </div>
+        </div>
+        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 border border-white/20">
+          <div class="text-[11px] text-blue-100">總預算剩餘</div>
+          <div class="text-base font-bold" :class="monthlyRemainingBudget >= 0 ? 'text-purple-200' : 'text-rose-300'">
+            NT$ {{ formatNumber(monthlyRemainingBudget) }}
+          </div>
+        </div>
       </div>
     </header>
 
     <!-- 主內容區 -->
     <main class="flex-1 overflow-y-auto px-4 py-4 pb-24 space-y-4">
 
-      <!-- 拖曳上傳提示橫幅 -->
-      <div class="bg-blue-50 border-2 border-dashed border-blue-300 rounded-2xl p-3 text-center text-xs text-blue-700">
-        📁 可直接將 <b>Word (.docx)</b> 或文字檔拖曳至畫面任意處自動匯入建檔！
-      </div>
-
-      <!-- Tab 1: 歌詞庫與搜尋 -->
-      <div v-show="activeTab === 'library'" class="space-y-4">
-        <div class="flex gap-2">
-          <input type="text" v-model="searchKeyword" placeholder="🔍 搜尋歌名、作者或歌詞關鍵字..." class="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-        </div>
-
-        <div class="space-y-2">
-          <div v-if="filteredSongs.length === 0" class="bg-white rounded-2xl p-8 text-center text-slate-400 text-sm border border-slate-200">
-            尚無歌詞資料，請至「寫歌創作」新增或直接拖曳檔案進來 🎼
+      <!-- ================= Tab 1: 記帳與明細 ================= -->
+      <div v-show="activeTab === 'record'" class="space-y-4">
+        <!-- 記帳卡片 -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+          <div class="flex bg-slate-100 p-1 rounded-xl mb-3">
+            <button @click="form.type = '支出'" :class="form.type === '支出' ? 'bg-rose-500 text-white shadow' : 'text-slate-600'" class="flex-1 py-1.5 rounded-lg text-sm font-bold transition">支出</button>
+            <button @click="form.type = '收入'" :class="form.type === '收入' ? 'bg-emerald-600 text-white shadow' : 'text-slate-600'" class="flex-1 py-1.5 rounded-lg text-sm font-bold transition">收入</button>
           </div>
-          <div v-for="song in filteredSongs" :key="song.id" @click="openSongDetail(song)" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 active:bg-slate-50 cursor-pointer transition space-y-1">
-            <div class="flex justify-between items-start">
-              <h3 class="font-bold text-slate-800 text-base">{{ song.title }}</h3>
-              <span class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-semibold">Key: {{ song.key || 'C' }}</span>
+
+          <div class="space-y-3">
+            <!-- 分類選擇 + 快捷自訂 -->
+            <div>
+              <div class="flex justify-between items-center mb-1">
+                <label class="text-xs font-semibold text-slate-500">項目分類</label>
+                <button @click="openQuickAddCat" class="text-xs text-blue-600 font-bold">＋ 自訂新分類</button>
+              </div>
+              <div class="flex gap-2">
+                <select v-model="form.category" class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                  <option v-for="cat in currentCategories" :key="cat" :value="cat">{{ cat }}</option>
+                </select>
+              </div>
             </div>
-            <p class="text-xs text-slate-500">作者 / 歌手：{{ song.artist || '未填寫' }}</p>
-            <p class="text-xs text-slate-400 truncate mt-1">{{ song.content.substring(0, 40) }}...</p>
+
+            <!-- 金額與日期 -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-xs font-semibold text-slate-500 mb-1 block">金額 (NT$)</label>
+                <input type="number" v-model.number="form.amount" placeholder="0" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-base font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-slate-500 mb-1 block">日期</label>
+                <input type="date" v-model="form.date" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-2 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none">
+              </div>
+            </div>
+
+            <!-- 備註 -->
+            <div>
+              <label class="text-xs font-semibold text-slate-500 mb-1 block">備註說明 (選填)</label>
+              <input type="text" v-model="form.note" placeholder="例：午餐、加油..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+
+            <button @click="addTransaction" class="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-md hover:bg-blue-700 active:scale-[0.98] transition">
+              ＋ 加入此筆記錄 (同步雲端)
+            </button>
+          </div>
+        </div>
+
+        <!-- 當月記錄清單 -->
+        <div class="space-y-2">
+          <div class="flex justify-between items-center px-1">
+            <h3 class="text-xs font-bold text-slate-500 tracking-wider">本月明細 ({{ monthlyTransactions.length }} 筆)</h3>
+            <span class="text-[11px] text-slate-400">點擊項目可修改或刪除</span>
+          </div>
+
+          <div v-if="monthlyTransactions.length === 0" class="bg-white rounded-2xl p-8 text-center text-slate-400 text-sm border border-slate-200">
+            本月尚無任何收支記錄 🍃
+          </div>
+
+          <div v-else class="space-y-2">
+            <div 
+              v-for="item in monthlyTransactions" 
+              :key="item.id" 
+              @click="openEditModal(item)"
+              class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between active:bg-slate-50 transition cursor-pointer"
+            >
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm" :class="item.type === '收入' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'">
+                  {{ item.type === '收入' ? '入' : '支' }}
+                </div>
+                <div>
+                  <div class="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                    {{ item.category }}
+                    <span v-if="item.note" class="text-xs font-normal text-slate-400 truncate max-w-[120px]">({{ item.note }})</span>
+                  </div>
+                  <div class="text-[11px] text-slate-400">{{ item.date }}</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="font-bold text-base" :class="item.type === '收入' ? 'text-emerald-600' : 'text-slate-800'">
+                  {{ item.type === '收入' ? '+' : '-' }} NT$ {{ formatNumber(item.amount) }}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Tab 2: 寫歌創作工坊 -->
-      <div v-show="activeTab === 'studio'" class="space-y-4">
+      <!-- ================= Tab 2: 預算細項控管 ================= -->
+      <div v-show="activeTab === 'budget'" class="space-y-4">
         <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
-          <h3 class="font-bold text-slate-800 text-sm">✍️ 建立新歌詞 / 寫歌創作</h3>
-          <div>
-            <label class="text-xs font-semibold text-slate-500 mb-1 block">歌名</label>
-            <input type="text" v-model="songForm.title" placeholder="請輸入歌名..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none">
-          </div>
+          <h3 class="font-bold text-slate-800 text-sm">🎯 設定各分類預算目標</h3>
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="text-xs font-semibold text-slate-500 mb-1 block">作者 / 歌手</label>
-              <input type="text" v-model="songForm.artist" placeholder="作者" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm">
-            </div>
-            <div>
-              <label class="text-xs font-semibold text-slate-500 mb-1 block">調性 (Key)</label>
-              <select v-model="songForm.key" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm">
-                <option v-for="k in ['C', 'G', 'D', 'A', 'E', 'B', 'F', 'Am', 'Em', 'Dm', 'Bm']" :key="k" :value="k">{{ k }}</option>
+              <label class="text-xs font-semibold text-slate-500 mb-1 block">支出分類</label>
+              <select v-model="budgetEdit.category" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-2 py-2 text-sm font-medium">
+                <option v-for="cat in appData.expenseCategories" :key="cat" :value="cat">{{ cat }}</option>
               </select>
             </div>
-          </div>
-
-          <div>
-            <label class="text-xs font-semibold text-slate-500 mb-1 block">快速插入和弦</label>
-            <div class="flex flex-wrap gap-1">
-              <button v-for="chord in ['[C]', '[G]', '[Am]', '[F]', '[Dm]', '[Em]', '[D7]', '[A7]']" :key="chord" @click="insertChord(chord)" class="px-2.5 py-1 bg-slate-100 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition">
-                {{ chord }}
-              </button>
+            <div>
+              <label class="text-xs font-semibold text-slate-500 mb-1 block">每月預算 (NT$)</label>
+              <input type="number" v-model.number="budgetEdit.amount" placeholder="0" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold">
             </div>
           </div>
+          <div class="flex gap-2">
+            <button @click="saveBudget" class="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow">
+              💾 儲存預算
+            </button>
+            <button @click="clearBudget" class="py-2.5 px-3 bg-slate-200 text-slate-600 rounded-xl text-sm font-bold">
+              清除歸零
+            </button>
+          </div>
+        </div>
 
-          <div>
-            <label class="text-xs font-semibold text-slate-500 mb-1 block">歌詞內容 (支援和弦格式，如 [C]你好)</label>
-            <textarea id="songContentArea" v-model="songForm.content" rows="8" placeholder="[C]這是一個[G]寫歌範例..." class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm focus:outline-none font-mono"></textarea>
+        <!-- 預算進度清單 -->
+        <div class="space-y-2">
+          <h3 class="text-xs font-bold text-slate-500 tracking-wider px-1">本月預算執行進度</h3>
+          <div v-for="b in budgetProgressList" :key="b.category" class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 space-y-2">
+            <div class="flex justify-between items-center">
+              <div class="font-bold text-slate-800 text-sm">{{ b.category }}</div>
+              <span class="text-xs px-2 py-0.5 rounded-full font-bold" :class="b.statusClass">
+                {{ b.statusText }} ({{ b.ratio.toFixed(0) }}%)
+              </span>
+            </div>
+
+            <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+              <div class="h-full transition-all duration-500 rounded-full" :class="b.barColorClass" :style="{ width: Math.min(100, b.ratio) + '%' }"></div>
+            </div>
+
+            <div class="flex justify-between text-xs text-slate-500">
+              <span>已花費: NT$ {{ formatNumber(b.spent) }}</span>
+              <span>目標: NT$ {{ formatNumber(b.budget) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= Tab 3: 圖表分析 ================= -->
+      <div v-show="activeTab === 'charts'" class="space-y-4">
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+          <h3 class="font-bold text-slate-800 text-sm mb-3">支出分類圓餅圖</h3>
+          <div class="relative h-64 flex items-center justify-center">
+            <canvas id="pieChart"></canvas>
+          </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+          <h3 class="font-bold text-slate-800 text-sm mb-3">預算 vs 支出對比圖</h3>
+          <div class="relative h-64 flex items-center justify-center">
+            <canvas id="barChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= Tab 4: 分類與資料管理 ================= -->
+      <div v-show="activeTab === 'manage'" class="space-y-4">
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+          <h3 class="font-bold text-slate-800 text-sm">🏷️ 自訂分類管理</h3>
+          
+          <div class="flex bg-slate-100 p-1 rounded-xl">
+            <button @click="manageType = '支出'" :class="manageType === '支出' ? 'bg-white shadow text-slate-800' : 'text-slate-500'" class="flex-1 py-1 text-xs font-bold rounded-lg transition">支出分類</button>
+            <button @click="manageType = '收入'" :class="manageType === '收入' ? 'bg-white shadow text-slate-800' : 'text-slate-500'" class="flex-1 py-1 text-xs font-bold rounded-lg transition">收入分類</button>
           </div>
 
-          <button @click="saveSong" class="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow hover:bg-blue-700 transition">
-            💾 儲存歌曲至庫
+          <div class="flex gap-2">
+            <input type="text" v-model="newCatName" placeholder="輸入新分類名稱..." class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm">
+            <button @click="addNewCategory" class="px-4 bg-blue-600 text-white rounded-xl text-sm font-bold shadow">新增</button>
+          </div>
+
+          <div class="divide-y divide-slate-100 max-h-48 overflow-y-auto border border-slate-100 rounded-xl">
+            <div v-for="cat in (manageType === '支出' ? appData.expenseCategories : appData.incomeCategories)" :key="cat" class="py-2 px-3 flex justify-between items-center text-sm">
+              <span class="font-medium text-slate-700">{{ cat }}</span>
+              <div class="flex gap-1">
+                <button @click="renameCategory(cat)" class="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-lg font-bold">更名</button>
+                <button @click="deleteCategory(cat)" class="text-xs text-rose-600 bg-rose-50 px-2 py-1 rounded-lg font-bold">刪除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 報表匯出 -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+          <h3 class="font-bold text-slate-800 text-sm">📤 報表匯出</h3>
+          <button @click="exportCSV(true)" class="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow">
+            📊 匯出本月 CSV 報表 (Excel 不亂碼)
+          </button>
+          <button @click="exportCSV(false)" class="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow">
+            📚 匯出全年度總明細 (CSV)
           </button>
         </div>
       </div>
     </main>
 
-    <!-- 檢視歌詞與和弦切換彈窗 -->
-    <div v-if="detailModal.visible" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div class="bg-white w-full max-w-md h-[85vh] rounded-t-3xl sm:rounded-3xl p-5 flex flex-col space-y-3">
-        <div class="flex justify-between items-center border-b pb-3">
-          <div>
-            <h3 class="text-base font-bold text-slate-800">{{ detailModal.song.title }}</h3>
-            <span class="text-xs text-slate-400">Key: {{ detailModal.song.key }} | {{ detailModal.song.artist }}</span>
-          </div>
-          <button @click="detailModal.visible = false" class="text-slate-400 text-lg font-bold px-2">✕</button>
+    <!-- 底部導航欄 -->
+    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-md border-t border-slate-200 flex justify-around py-2 pb-safe z-30">
+      <button @click="switchTab('record')" :class="activeTab === 'record' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center gap-1 flex-1">
+        <span class="text-lg">📋</span>
+        <span class="text-[10px] font-bold">收支記帳</span>
+      </button>
+      <button @click="switchTab('budget')" :class="activeTab === 'budget' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center gap-1 flex-1">
+        <span class="text-lg">🎯</span>
+        <span class="text-[10px] font-bold">預算控管</span>
+      </button>
+      <button @click="switchTab('charts')" :class="activeTab === 'charts' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center gap-1 flex-1">
+        <span class="text-lg">📊</span>
+        <span class="text-[10px] font-bold">圖表分析</span>
+      </button>
+      <button @click="switchTab('manage')" :class="activeTab === 'manage' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center gap-1 flex-1">
+        <span class="text-lg">⚙️</span>
+        <span class="text-[10px] font-bold">管理設定</span>
+      </button>
+    </nav>
+
+    <!-- 編輯彈窗 -->
+    <div v-if="editModal.visible" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="text-base font-bold text-slate-800">✏️ 修改收支記錄</h3>
+          <button @click="editModal.visible = false" class="text-slate-400 text-lg font-bold">✕</button>
         </div>
 
-        <!-- 和弦顯示模式切換 -->
         <div class="flex bg-slate-100 p-1 rounded-xl">
-          <button @click="showChords = true" :class="showChords ? 'bg-blue-600 text-white shadow' : 'text-slate-600'" class="flex-1 py-1.5 rounded-lg text-xs font-bold transition">🎸 顯示和弦</button>
-          <button @click="showChords = false" :class="!showChords ? 'bg-blue-600 text-white shadow' : 'text-slate-600'" class="flex-1 py-1.5 rounded-lg text-xs font-bold transition">📜 純歌詞模式</button>
+          <button @click="editModal.item.type = '支出'" :class="editModal.item.type === '支出' ? 'bg-rose-500 text-white shadow' : 'text-slate-600'" class="flex-1 py-1 rounded-lg text-xs font-bold">支出</button>
+          <button @click="editModal.item.type = '收入'" :class="editModal.item.type === '收入' ? 'bg-emerald-600 text-white shadow' : 'text-slate-600'" class="flex-1 py-1 rounded-lg text-xs font-bold">收入</button>
         </div>
 
-        <div class="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-4 overflow-y-auto font-mono text-sm leading-relaxed whitespace-pre-wrap" v-html="renderedLyrics"></div>
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs font-semibold text-slate-500 mb-1 block">項目分類</label>
+            <select v-model="editModal.item.category" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm">
+              <option v-for="cat in (editModal.item.type === '支出' ? appData.expenseCategories : appData.incomeCategories)" :key="cat" :value="cat">{{ cat }}</option>
+            </select>
+          </div>
 
-        <div class="flex gap-2 pt-2">
-          <button @click="deleteSong(detailModal.song.id)" class="py-2.5 px-4 bg-rose-100 text-rose-600 rounded-xl text-xs font-bold">🗑️ 刪除</button>
-          <button @click="detailModal.visible = false" class="flex-1 py-2.5 bg-slate-800 text-white rounded-xl text-xs font-bold">關閉</button>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-xs font-semibold text-slate-500 mb-1 block">金額 (NT$)</label>
+              <input type="number" v-model.number="editModal.item.amount" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-base font-bold">
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-slate-500 mb-1 block">日期</label>
+              <input type="date" v-model="editModal.item.date" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-2 py-2 text-sm">
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs font-semibold text-slate-500 mb-1 block">備註說明</label>
+            <input type="text" v-model="editModal.item.note" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm">
+          </div>
+
+          <div class="flex gap-2 pt-2">
+            <button @click="saveEditTransaction" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow">
+              💾 儲存修改
+            </button>
+            <button @click="deleteModalTransaction" class="py-3 px-4 bg-rose-100 text-rose-600 rounded-xl font-bold">
+              🗑️ 刪除
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 底部導航欄 -->
-    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-md border-t border-slate-200 flex justify-around py-2 z-30">
-      <button @click="activeTab = 'library'" :class="activeTab === 'library' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center gap-1 flex-1">
-        <span class="text-lg">📚</span>
-        <span class="text-[10px] font-bold">歌詞庫</span>
-      </button>
-      <button @click="activeTab = 'studio'" :class="activeTab === 'studio' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center gap-1 flex-1">
-        <span class="text-lg">✍️</span>
-        <span class="text-[10px] font-bold">寫歌創作</span>
-      </button>
-    </nav>
   </div>
 
   <script>
-    const { createApp, ref, computed } = Vue;
+    const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
+
     createApp({
       setup() {
-        const activeTab = ref('library');
-        const searchKeyword = ref('');
-        const showChords = ref(true);
+        const activeTab = ref('record');
+        const manageType = ref('支出');
+        const filterMonth = ref(new Date().toISOString().substring(0, 7));
 
-        const songs = ref(JSON.parse(localStorage.getItem('lyrics_app_data')) || [
-          { id: '1', title: '晴天範例曲', artist: '周杰倫', key: 'G', content: '[G]故事的小黃花[D] 從出生那年就飄[Em]著\n[C]童年的盪鞦韆[D] 隨記憶一直晃到[G]現在' }
-        ]);
+        // ⚠️ 你的 Firebase 專屬同步網址
+        const FIREBASE_URL = "https://my-budget-sync-d358e-default-rtdb.firebaseio.com/data.json?auth=BqfQQwEgoZdSWmjtiGZ7RP7U69vgGrQRCmBjHY64";
 
-        const songForm = ref({ title: '', artist: '', key: 'C', content: '' });
-        const detailModal = ref({ visible: false, song: {} });
+        const defaultData = {
+          expenseCategories: ["餐飲飲食", "日常採買", "水電瓦斯", "交通運輸", "休閒娛樂", "健康醫療", "其他支出"],
+          incomeCategories: ["薪資收入", "投資收益", "獎金補貼", "副業接案", "其他收入"],
+          categoryBudgets: {
+            "餐飲飲食": 10000,
+            "日常採買": 5000,
+            "水電瓦斯": 3000,
+            "交通運輸": 3000,
+            "休閒娛樂": 4000,
+            "健康醫療": 2000,
+            "其他支出": 3000
+          },
+          transactions: []
+        };
 
-        const saveData = () => localStorage.setItem('lyrics_app_data', JSON.stringify(songs.value));
+        const appData = ref(JSON.parse(localStorage.getItem('budget_pwa_data')) || defaultData);
 
-        const filteredSongs = computed(() => {
-          if (!searchKeyword.value.trim()) return songs.value;
-          const kw = searchKeyword.value.toLowerCase();
-          return songs.value.filter(s => s.title.toLowerCase().includes(kw) || s.artist.toLowerCase().includes(kw) || s.content.toLowerCase().includes(kw));
+        const form = ref({
+          type: '支出',
+          category: '餐飲飲食',
+          amount: null,
+          date: new Date().toISOString().substring(0, 10),
+          note: ''
         });
 
-        // 支援拖曳 Word (.docx) 或文字檔自動匯入
-        const handleFileDrop = async (e) => {
-          const files = e.dataTransfer.files;
-          if (!files.length) return;
+        const budgetEdit = ref({
+          category: '餐飲飲食',
+          amount: 10000
+        });
 
-          for (let file of files) {
-            const ext = file.name.split('.').pop().toLowerCase();
-            const title = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+        const newCatName = ref('');
+        const editModal = ref({ visible: false, item: null });
 
-            if (ext === 'docx') {
-              const reader = new FileReader();
-              reader.onload = async function(event) {
-                try {
-                  const result = await mammoth.extractRawText({ arrayBuffer: event.target.result });
-                  songs.value.unshift({
-                    id: crypto.randomUUID(),
-                    title: title,
-                    artist: 'Word 匯入',
-                    key: 'C',
-                    content: result.value
-                  });
-                  saveData();
-                  activeTab.value = 'library';
-                  alert(`✅ Word 檔案「${title}」已成功匯入建檔！`);
-                } catch (err) {
-                  alert('解析 Word 失敗');
-                }
-              };
-              reader.readAsArrayBuffer(file);
-            } else if (ext === 'txt' || ext === 'md') {
-              const reader = new FileReader();
-              reader.onload = function(event) {
-                songs.value.unshift({
-                  id: crypto.randomUUID(),
-                  title: title,
-                  artist: '文字檔匯入',
-                  key: 'C',
-                  content: event.target.result
-                });
-                saveData();
-                activeTab.value = 'library';
-                alert(`✅ 文字檔「${title}」已成功匯入建檔！`);
-              };
-              reader.readAsText(file);
-            } else {
-              alert(`目前支援直接拖曳 .docx 與 .txt 檔案：${file.name}`);
+        let pieChartInstance = null;
+        let barChartInstance = null;
+
+        // 雲端同步儲存
+        const saveData = async () => {
+          localStorage.setItem('budget_pwa_data', JSON.stringify(appData.value));
+          try {
+            await fetch(FIREBASE_URL, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(appData.value)
+            });
+          } catch (err) {
+            console.log('雲端同步失敗，已儲存於本地快取', err);
+          }
+        };
+
+        // 雲端載入
+        const loadCloudData = async (showNotice = false) => {
+          try {
+            const res = await fetch(FIREBASE_URL);
+            const cloudData = await res.json();
+            if (cloudData && cloudData.transactions) {
+              appData.value = cloudData;
+              localStorage.setItem('budget_pwa_data', JSON.stringify(cloudData));
+              renderCharts();
+              if (showNotice) alert('☁️ 資料同步成功！');
+            }
+          } catch (err) {
+            console.log('無法連線雲端，讀取本機快取');
+          }
+        };
+
+        const currentCategories = computed(() => {
+          return form.value.type === '支出' ? appData.value.expenseCategories : appData.value.incomeCategories;
+        });
+
+        watch(() => form.value.type, (newType) => {
+          const list = newType === '支出' ? appData.value.expenseCategories : appData.value.incomeCategories;
+          form.value.category = list[0] || '';
+        });
+
+        const monthlyTransactions = computed(() => {
+          return (appData.value.transactions || [])
+            .filter(t => t.date.startsWith(filterMonth.value))
+            .sort((a, b) => new Date(b.date) - new Date(a.date));
+        });
+
+        const monthlyIncome = computed(() => {
+          return monthlyTransactions.value.filter(t => t.type === '收入').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+        });
+
+        const monthlyExpense = computed(() => {
+          return monthlyTransactions.value.filter(t => t.type === '支出').reduce((sum, t) => sum + Number(t.amount || 0), 0);
+        });
+
+        const monthlyBalance = computed(() => monthlyIncome.value - monthlyExpense.value);
+
+        const totalBudget = computed(() => {
+          let sum = 0;
+          for (let cat of (appData.value.expenseCategories || [])) {
+            sum += Number(appData.value.categoryBudgets?.[cat] || 0);
+          }
+          return sum;
+        });
+
+        const monthlyRemainingBudget = computed(() => totalBudget.value - monthlyExpense.value);
+
+        const budgetProgressList = computed(() => {
+          const expenses = monthlyTransactions.value.filter(t => t.type === '支出');
+          return (appData.value.expenseCategories || []).map(cat => {
+            const budget = Number(appData.value.categoryBudgets?.[cat] || 0);
+            const spent = expenses.filter(t => t.category === cat).reduce((sum, t) => sum + Number(t.amount || 0), 0);
+            const ratio = budget > 0 ? (spent / budget) * 100 : 0;
+
+            let statusText = '正常';
+            let statusClass = 'bg-emerald-100 text-emerald-700';
+            let barColorClass = 'bg-emerald-500';
+
+            if (budget > 0 && spent > budget) {
+              statusText = '超支';
+              statusClass = 'bg-rose-100 text-rose-700';
+              barColorClass = 'bg-rose-500';
+            } else if (budget > 0 && ratio >= 80) {
+              statusText = '接近上限';
+              statusClass = 'bg-amber-100 text-amber-700';
+              barColorClass = 'bg-amber-500';
+            }
+
+            return { category: cat, budget, spent, ratio, statusText, statusClass, barColorClass };
+          });
+        });
+
+        const addTransaction = async () => {
+          if (!form.value.amount || form.value.amount <= 0) {
+            alert('請輸入大於 0 的金額！');
+            return;
+          }
+          if (!appData.value.transactions) appData.value.transactions = [];
+          appData.value.transactions.push({
+            id: crypto.randomUUID(),
+            type: form.value.type,
+            category: form.value.category,
+            amount: Number(form.value.amount),
+            date: form.value.date,
+            note: (form.value.note || '').trim()
+          });
+          await saveData();
+          form.value.amount = null;
+          form.value.note = '';
+          renderCharts();
+        };
+
+        const openQuickAddCat = () => {
+          const type = form.value.type;
+          const name = prompt(`請輸入新的「${type}」分類名稱：`);
+          if (name && name.trim()) {
+            const target = type === '支出' ? appData.value.expenseCategories : appData.value.incomeCategories;
+            if (!target.includes(name.trim())) {
+              target.push(name.trim());
+              if (type === '支出') {
+                if (!appData.value.categoryBudgets) appData.value.categoryBudgets = {};
+                appData.value.categoryBudgets[name.trim()] = 0;
+              }
+              saveData();
+              form.value.category = name.trim();
             }
           }
         };
 
-        const saveSong = () => {
-          if (!songForm.value.title.trim() || !songForm.value.content.trim()) {
-            alert('請填寫歌名與歌詞內容！');
-            return;
-          }
-          songs.value.unshift({
-            id: crypto.randomUUID(),
-            title: songForm.value.title.trim(),
-            artist: songForm.value.artist.trim(),
-            key: songForm.value.key,
-            content: songForm.value.content
-          });
-          saveData();
-          songForm.value = { title: '', artist: '', key: 'C', content: '' };
-          activeTab.value = 'library';
-          alert('✅ 歌曲已成功儲存！');
+        const openEditModal = (item) => {
+          editModal.value.item = JSON.parse(JSON.stringify(item));
+          editModal.value.visible = true;
         };
 
-        const openSongDetail = (song) => {
-          detailModal.value.song = song;
-          showChords.value = true;
-          detailModal.value.visible = true;
-        };
-
-        const deleteSong = (id) => {
-          if (confirm('確定要刪除這首歌曲嗎？')) {
-            songs.value = songs.value.filter(s => s.id !== id);
-            saveData();
-            detailModal.value.visible = false;
+        const saveEditTransaction = async () => {
+          const idx = appData.value.transactions.findIndex(t => t.id === editModal.value.item.id);
+          if (idx !== -1) {
+            appData.value.transactions[idx] = editModal.value.item;
+            await saveData();
+            editModal.value.visible = false;
+            renderCharts();
           }
         };
 
-        const insertChord = (chord) => {
-          const textarea = document.getElementById('songContentArea');
-          if (!textarea) return;
-          const start = textarea.selectionStart;
-          const end = textarea.selectionEnd;
-          const text = songForm.value.content;
-          songForm.value.content = text.substring(0, start) + chord + text.substring(end);
+        const deleteModalTransaction = async () => {
+          if (confirm('確定要刪除這筆記錄嗎？')) {
+            appData.value.transactions = appData.value.transactions.filter(t => t.id !== editModal.value.item.id);
+            await saveData();
+            editModal.value.visible = false;
+            renderCharts();
+          }
         };
 
-        const renderedLyrics = computed(() => {
-          const text = detailModal.value.song.content || '';
-          if (showChords.value) {
-            return text.replace(/\[(.*?)\]/g, '<span class="chord">$1</span>');
-          } else {
-            return text.replace(/\[(.*?)\]/g, '');
-          }
+        const saveBudget = async () => {
+          if (!appData.value.categoryBudgets) appData.value.categoryBudgets = {};
+          appData.value.categoryBudgets[budgetEdit.value.category] = Number(budgetEdit.value.amount || 0);
+          await saveData();
+          alert(`已更新「${budgetEdit.value.category}」預算！`);
+          renderCharts();
+        };
+
+        const clearBudget = async () => {
+          if (!appData.value.categoryBudgets) appData.value.categoryBudgets = {};
+          appData.value.categoryBudgets[budgetEdit.value.category] = 0;
+          budgetEdit.value.amount = 0;
+          await saveData();
+          alert(`已清空預算！`);
+          renderCharts();
+        };
+
+        watch(() => budgetEdit.value.category, (cat) => {
+          budgetEdit.value.amount = appData.value.categoryBudgets?.[cat] || 0;
         });
 
-        const exportJSON = () => {
-          const blob = new Blob([JSON.stringify(songs.value, null, 2)], { type: 'application/json' });
+        const addNewCategory = async () => {
+          const name = newCatName.value.trim();
+          if (!name) return;
+          const target = manageType.value === '支出' ? appData.value.expenseCategories : appData.value.incomeCategories;
+          if (target.includes(name)) {
+            alert('該分類已存在！');
+            return;
+          }
+          target.push(name);
+          if (manageType.value === '支出') {
+            if (!appData.value.categoryBudgets) appData.value.categoryBudgets = {};
+            appData.value.categoryBudgets[name] = 0;
+          }
+          await saveData();
+          newCatName.value = '';
+        };
+
+        const renameCategory = async (oldName) => {
+          const newName = prompt(`將「${oldName}」重新命名為：`, oldName);
+          if (newName && newName.trim() && newName.trim() !== oldName) {
+            const target = manageType.value === '支出' ? appData.value.expenseCategories : appData.value.incomeCategories;
+            const idx = target.indexOf(oldName);
+            if (idx !== -1) {
+              target[idx] = newName.trim();
+              if (manageType.value === '支出' && appData.value.categoryBudgets) {
+                const bVal = appData.value.categoryBudgets[oldName] || 0;
+                delete appData.value.categoryBudgets[oldName];
+                appData.value.categoryBudgets[newName.trim()] = bVal;
+              }
+              (appData.value.transactions || []).forEach(t => {
+                if (t.category === oldName) t.category = newName.trim();
+              });
+              await saveData();
+            }
+          }
+        };
+
+        const deleteCategory = async (cat) => {
+          const target = manageType.value === '支出' ? appData.value.expenseCategories : appData.value.incomeCategories;
+          if (target.length <= 1) {
+            alert('至少需保留一個分類！');
+            return;
+          }
+          if (confirm(`確定要刪除「${cat}」分類嗎？`)) {
+            const idx = target.indexOf(cat);
+            if (idx !== -1) target.splice(idx, 1);
+            if (manageType.value === '支出' && appData.value.categoryBudgets) delete appData.value.categoryBudgets[cat];
+            await saveData();
+          }
+        };
+
+        const exportCSV = (onlyMonth) => {
+          const list = onlyMonth ? monthlyTransactions.value : appData.value.transactions;
+          if (!list || list.length === 0) {
+            alert('查無資料可供匯出！');
+            return;
+          }
+          let csv = "\uFEFF記錄ID,日期,收支類型,項目分類,金額,備註\n";
+          list.forEach(item => {
+            const note = (item.note || '').replace(/"/g, '""');
+            csv += `"${item.id}","${item.date}","${item.type}","${item.category}",${item.amount},"${note}"\n`;
+          });
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `Lyrics_Backup_${new Date().toISOString().substring(0,10)}.json`;
+          a.download = onlyMonth ? `收支月報表_${filterMonth.value}.csv` : `收支總報表_${new Date().toISOString().substring(0,10)}.csv`;
           a.click();
+          URL.revokeObjectURL(url);
         };
 
+        const renderCharts = () => {
+          nextTick(() => {
+            const pieCtx = document.getElementById('pieChart');
+            const barCtx = document.getElementById('barChart');
+            if (!pieCtx || !barCtx) return;
+
+            const expenses = monthlyTransactions.value.filter(t => t.type === '支出');
+            const catMap = {};
+            expenses.forEach(t => {
+              catMap[t.category] = (catMap[t.category] || 0) + Number(t.amount);
+            });
+
+            const labels = Object.keys(catMap);
+            const data = Object.values(catMap);
+
+            if (pieChartInstance) pieChartInstance.destroy();
+            pieChartInstance = new Chart(pieCtx, {
+              type: 'doughnut',
+              data: {
+                labels: labels.length ? labels : ['無支出'],
+                datasets: [{
+                  data: data.length ? data : [1],
+                  backgroundColor: ['#ef4444', '#f97316', '#eab308', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#64748b']
+                }]
+              },
+              options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            const barLabels = appData.value.expenseCategories || [];
+            const budgetData = barLabels.map(cat => appData.value.categoryBudgets?.[cat] || 0);
+            const spentData = barLabels.map(cat => expenses.filter(t => t.category === cat).reduce((s, t) => s + Number(t.amount), 0));
+
+            if (barChartInstance) barChartInstance.destroy();
+            barChartInstance = new Chart(barCtx, {
+              type: 'bar',
+              data: {
+                labels: barLabels,
+                datasets: [
+                  { label: '預算目標', data: budgetData, backgroundColor: '#c084fc' },
+                  { label: '實際支出', data: spentData, backgroundColor: '#f87171' }
+                ]
+              },
+              options: { responsive: true, maintainAspectRatio: false }
+            });
+          });
+        };
+
+        const switchTab = (tab) => {
+          activeTab.value = tab;
+          if (tab === 'charts') renderCharts();
+        };
+
+        const formatNumber = (num) => Number(num || 0).toLocaleString();
+
+        watch(filterMonth, () => renderCharts());
+
+        onMounted(async () => {
+          await loadCloudData();
+          budgetEdit.value.amount = appData.value.categoryBudgets?.[budgetEdit.value.category] || 0;
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration error', err));
+          }
+        });
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") {
+                loadCloudData();
+            }
+        });
+
+        setInterval(() => {
+            loadCloudData();
+        }, 10000);
+
         return {
-          activeTab, searchKeyword, showChords, songs, songForm, detailModal,
-          filteredSongs, handleFileDrop, saveSong, openSongDetail, deleteSong, insertChord, renderedLyrics, exportJSON
+          activeTab, manageType, filterMonth, appData, form, budgetEdit, newCatName, editModal,
+          currentCategories, monthlyTransactions, monthlyIncome, monthlyExpense, monthlyBalance,
+          totalBudget, monthlyRemainingBudget, budgetProgressList, loadCloudData,
+          addTransaction, openQuickAddCat, openEditModal, saveEditTransaction, deleteModalTransaction,
+          saveBudget, clearBudget, addNewCategory, renameCategory, deleteCategory,
+          exportCSV, switchTab, formatNumber
         };
       }
     }).mount('#app');
