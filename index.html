@@ -10,6 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="個人記帳">
 
+  <!-- Tailwind CSS, Vue 3, Chart.js -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -17,6 +18,12 @@
     body { -webkit-tap-highlight-color: transparent; }
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.03); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .recording-pulse { animation: pulse-ring 1.5s infinite ease-in-out; }
   </style>
 </head>
 <body class="bg-slate-100 min-h-screen text-slate-800 font-sans pb-24 select-none">
@@ -39,6 +46,7 @@
           </div>
         </div>
 
+        <!-- 2x2 預算收支統計看板 -->
         <div class="grid grid-cols-2 gap-2 mt-2">
           <div class="bg-white/15 backdrop-blur-sm p-2.5 rounded-2xl">
             <div class="text-[11px] text-blue-100">本月總收入</div>
@@ -62,27 +70,76 @@
       <!-- 主要內容區 -->
       <main class="p-4 flex-1">
 
-        <!-- 分頁 1：收支記帳 -->
+        <!-- 分頁 1：收支記帳（含語音輸入、外幣與旅遊模式） -->
         <div v-show="currentTab === 'records'" class="space-y-4">
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-            <div class="grid grid-cols-2 gap-2 mb-2">
-              <select v-model="form.type" class="p-2 border rounded-xl text-sm bg-slate-50 font-medium">
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+
+            <!-- 🎤 語音記帳按鈕 -->
+            <div>
+              <button @click="startVoiceInput" type="button" class="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition" :class="isListening ? 'bg-rose-500 text-white recording-pulse shadow-md' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700'">
+                <span>{{ isListening ? '🔴 聆聽中... 請說話（說完自動辨識）' : '🎤 點我用語音記帳（收入、支出、外幣皆可）' }}</span>
+              </button>
+              <div v-if="voiceNotice" class="text-[11px] text-center text-slate-500 mt-1.5 bg-slate-50 py-1 px-2 rounded-lg border border-slate-100">
+                🗣️ 辨識內容：「{{ voiceNotice }}」
+              </div>
+            </div>
+
+            <!-- 收支類型、分類、幣別 -->
+            <div class="grid grid-cols-3 gap-2">
+              <select v-model="form.type" class="p-2 border rounded-xl text-xs bg-slate-50 font-bold" :class="form.type === '收入' ? 'text-emerald-600' : 'text-slate-800'">
                 <option value="支出">支出</option>
                 <option value="收入">收入</option>
               </select>
-              <select v-model="form.category" class="p-2 border rounded-xl text-sm bg-slate-50 font-medium">
+              <select v-model="form.category" class="p-2 border rounded-xl text-xs bg-slate-50 font-medium">
                 <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
               </select>
+              <select v-model="form.currency" @change="onCurrencyChange" class="p-2 border rounded-xl text-xs bg-blue-50 text-blue-700 font-bold">
+                <option value="TWD">NT$ 台幣</option>
+                <option value="JPY">¥ 日圓 (JPY)</option>
+                <option value="USD">$ 美金 (USD)</option>
+                <option value="KRW">₩ 韓元 (KRW)</option>
+                <option value="EUR">€ 歐元 (EUR)</option>
+              </select>
             </div>
-            <div class="grid grid-cols-2 gap-2 mb-3">
-              <input v-model.number="form.amount" type="number" placeholder="金額" class="p-2 border rounded-xl text-sm outline-none bg-slate-50">
-              <input v-model="form.note" placeholder="例：午餐、加油..." class="p-2 border rounded-xl text-sm outline-none bg-slate-50">
+
+            <!-- 台幣直接填金額 -->
+            <div v-if="form.currency === 'TWD'" class="grid grid-cols-2 gap-2">
+              <input v-model.number="form.amount" type="number" placeholder="金額 (NT$)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50 font-bold">
+              <input v-model="form.note" placeholder="備註 (例: 午餐、薪水)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50">
             </div>
-            <button @click="addTransaction" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-sm transition">
+
+            <!-- 外幣填寫區 -->
+            <div v-else class="space-y-2 p-2.5 bg-blue-50/50 rounded-xl border border-blue-100">
+              <div class="grid grid-cols-2 gap-2">
+                <input v-model.number="form.foreignAmount" @input="calcTwdAmount" type="number" :placeholder="`外幣金額 (${form.currency})`" class="p-2 border rounded-xl text-xs bg-white outline-none font-bold text-blue-700">
+                <input v-model.number="form.rate" @input="calcTwdAmount" type="number" step="0.001" placeholder="匯率" class="p-2 border rounded-xl text-xs bg-white outline-none font-medium">
+              </div>
+              <div class="flex items-center justify-between px-1">
+                <label class="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-600 font-medium">
+                  <input type="checkbox" v-model="form.isCard" @change="calcTwdAmount" class="w-3.5 h-3.5 rounded text-blue-600">
+                  海外刷卡 (+1.5%手續費)
+                </label>
+                <div class="text-xs font-bold text-blue-700">
+                  折合約 NT$ {{ Number(form.amount || 0).toLocaleString() }}
+                </div>
+              </div>
+              <input v-model="form.note" placeholder="備註 (例: 伴手禮、藥妝)" class="w-full p-2 border rounded-xl text-xs outline-none bg-white">
+            </div>
+
+            <!-- ✈️ 出國旅遊專案標籤 -->
+            <div class="flex items-center justify-between px-1 text-xs">
+              <label class="flex items-center gap-1.5 cursor-pointer text-slate-600">
+                <input type="checkbox" v-model="form.isTravel" class="w-3.5 h-3.5 rounded text-indigo-600">
+                <span>✈️ 標記為出國 / 旅遊開銷</span>
+              </label>
+            </div>
+
+            <button @click="addTransaction" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-sm transition">
               + 加入此筆記錄
             </button>
           </div>
 
+          <!-- 明細清單 -->
           <div>
             <div class="flex justify-between items-center mb-2 px-1">
               <div class="text-xs font-bold text-slate-600">本月明細 ({{ filteredTransactions.length }} 筆)</div>
@@ -96,17 +153,24 @@
             <div class="space-y-2">
               <div v-for="item in filteredTransactions" :key="item.id" @click="openEditModal(item)" class="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-[0.99] transition cursor-pointer">
                 <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs" :class="item.type === '支出' ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-500'">
+                  <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0" :class="item.type === '支出' ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-500'">
                     {{ item.type === '支出' ? '支' : '收' }}
                   </div>
                   <div>
-                    <div class="text-sm font-semibold text-slate-800">
-                      {{ item.category }} <span v-if="item.note" class="text-xs font-normal text-slate-400">({{ item.note }})</span>
+                    <div class="text-xs font-bold text-slate-800 flex items-center gap-1 flex-wrap">
+                      <span>{{ item.category }}</span>
+                      <span v-if="item.isTravel" class="text-[10px] px-1.5 py-0.2 bg-indigo-50 text-indigo-600 rounded">✈️ 旅遊</span>
+                      <span v-if="item.note" class="text-slate-400 font-normal">({{ item.note }})</span>
                     </div>
-                    <div class="text-[11px] text-slate-400">{{ item.date }}</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">
+                      {{ item.date }}
+                      <span v-if="item.currency && item.currency !== 'TWD'" class="text-blue-600 font-medium ml-1">
+                        ({{ item.currency }} {{ Number(item.foreignAmount || 0).toLocaleString() }})
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <div class="text-sm font-bold" :class="item.type === '支出' ? 'text-slate-800' : 'text-emerald-600'">
+                <div class="text-sm font-bold text-right" :class="item.type === '支出' ? 'text-slate-800' : 'text-emerald-600'">
                   {{ item.type === '支出' ? '- NT$ ' : '+ NT$ ' }}{{ Number(item.amount).toLocaleString() }}
                 </div>
               </div>
@@ -231,9 +295,7 @@
               </label>
               <div class="flex items-center gap-2">
                 <span class="text-xs font-semibold text-slate-600">NT$ {{ item.price }}</span>
-                <!-- 修改鈕 -->
                 <button @click="openEditShopItem(item)" class="text-blue-500 hover:text-blue-700 text-xs px-1 font-medium">修改</button>
-                <!-- 刪除鈕 -->
                 <button @click="deleteShoppingItem(idx)" class="text-slate-300 hover:text-rose-500 text-xs px-1">✕</button>
               </div>
             </div>
@@ -263,7 +325,7 @@
       <!-- 記帳明細修改彈窗 -->
       <div v-if="editingItem" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-3 shadow-2xl">
-          <div class="text-sm font-bold text-slate-800">修改或刪除記錄</div>
+          <div class="text-sm font-bold text-slate-800">修改記錄</div>
           <div class="grid grid-cols-2 gap-2">
             <select v-model="editingItem.type" class="p-2 border rounded-xl text-xs bg-slate-50">
               <option value="支出">支出</option>
@@ -273,8 +335,24 @@
               <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
             </select>
           </div>
-          <input v-model.number="editingItem.amount" type="number" class="w-full p-2 border rounded-xl text-xs bg-slate-50 outline-none">
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[10px] text-slate-400">折合台幣 (NT$)</label>
+              <input v-model.number="editingItem.amount" type="number" class="w-full p-2 border rounded-xl text-xs bg-slate-50 outline-none font-bold">
+            </div>
+            <div>
+              <label class="text-[10px] text-slate-400">原外幣金額</label>
+              <input v-model.number="editingItem.foreignAmount" type="number" placeholder="無" class="w-full p-2 border rounded-xl text-xs bg-slate-50 outline-none">
+            </div>
+          </div>
+
           <input v-model="editingItem.note" placeholder="備註" class="w-full p-2 border rounded-xl text-xs bg-slate-50 outline-none">
+          <label class="flex items-center gap-1.5 text-xs text-slate-600">
+            <input type="checkbox" v-model="editingItem.isTravel" class="w-3.5 h-3.5 rounded">
+            ✈️ 標記為出國 / 旅遊開銷
+          </label>
+
           <div class="flex gap-2 pt-2">
             <button @click="deleteEditingItem" class="flex-1 py-2 bg-rose-50 text-rose-600 rounded-xl font-bold text-xs">刪除記錄</button>
             <button @click="saveEditingItem" class="flex-1 py-2 bg-blue-600 text-white rounded-xl font-bold text-xs">保存修改</button>
@@ -294,7 +372,7 @@
       setup() {
         const currentTab = ref('records');
         const transactions = ref([]);
-        const categories = ref(["餐飲飲食", "日常採買", "水電瓦斯", "交通保養", "旅遊玩耍", "健康醫療", "其他"]);
+        const categories = ref(["餐飲飲食", "日常採買", "水電瓦斯", "交通保養", "旅遊玩耍", "健康醫療", "薪資收入", "其他"]);
         const categoryBudgets = ref({ "餐飲飲食": 10000, "日常採買": 5000, "水電瓦斯": 3000, "交通保養": 3000, "旅遊玩耍": 4000 });
         const shoppingList = ref([]);
 
@@ -303,7 +381,29 @@
         const editingShopItem = ref(null);
         const newCategoryName = ref('');
 
-        const form = ref({ type: '支出', category: '餐飲飲食', amount: null, note: '' });
+        const isListening = ref(false);
+        const voiceNotice = ref('');
+
+        const defaultRates = {
+          'TWD': 1,
+          'JPY': 0.215,
+          'USD': 32.0,
+          'KRW': 0.024,
+          'EUR': 35.0
+        };
+
+        const form = ref({
+          type: '支出',
+          category: '餐飲飲食',
+          currency: 'TWD',
+          foreignAmount: null,
+          rate: 1,
+          isCard: false,
+          isTravel: false,
+          amount: null,
+          note: ''
+        });
+
         const newShopItem = ref({ name: '', cycle: 'weekly', price: null });
 
         const selectedMonth = ref(new Date().toISOString().slice(0, 7).replace('-', '年') + '月');
@@ -327,7 +427,7 @@
               transactions.value = val.transactions || [];
               if (val.categories) categories.value = val.categories;
               if (val.categoryBudgets) categoryBudgets.value = val.categoryBudgets;
-              shoppingList.value = val.shoppingList || []; // 預設無範例
+              shoppingList.value = val.shoppingList || [];
               renderChart();
             }
           } catch (e) {
@@ -357,6 +457,120 @@
           loadCloudData();
         });
 
+        // 語音辨識模組
+        const startVoiceInput = () => {
+          const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if (!SpeechRecognition) {
+            alert('您的手機瀏覽器暫不支援語音辨識，建議使用 Chrome 或 Safari 開啟。');
+            return;
+          }
+
+          const recognition = new SpeechRecognition();
+          recognition.lang = 'zh-TW';
+          recognition.interimResults = false;
+          recognition.maxAlternatives = 1;
+
+          recognition.onstart = () => {
+            isListening.value = true;
+            voiceNotice.value = '';
+          };
+
+          recognition.onresult = (event) => {
+            const text = event.results[0][0].transcript;
+            voiceNotice.value = text;
+            parseVoiceInput(text);
+          };
+
+          recognition.onerror = (e) => {
+            console.error('語音錯誤:', e);
+            isListening.value = false;
+          };
+
+          recognition.onend = () => {
+            isListening.value = false;
+          };
+
+          recognition.start();
+        };
+
+        const parseVoiceInput = (text) => {
+          // 判斷收支類型
+          const incomeKeywords = ['收入', '賺', '薪水', '入帳', '領錢', '獎金', '分紅', '發薪', '退稅', '利息', '兼職'];
+          const isIncome = incomeKeywords.some(k => text.includes(k));
+          form.value.type = isIncome ? '收入' : '支出';
+
+          // 判斷幣別
+          if (text.includes('日圓') || text.includes('日幣')) {
+            form.value.currency = 'JPY';
+          } else if (text.includes('美金') || text.includes('美元')) {
+            form.value.currency = 'USD';
+          } else if (text.includes('韓元') || text.includes('韓幣')) {
+            form.value.currency = 'KRW';
+          } else if (text.includes('歐元')) {
+            form.value.currency = 'EUR';
+          } else {
+            form.value.currency = 'TWD';
+          }
+          onCurrencyChange();
+
+          // 判斷出國旅遊標記
+          if (form.value.currency !== 'TWD' || text.includes('出國') || text.includes('旅遊') || text.includes('日本') || text.includes('伴手禮')) {
+            form.value.isTravel = true;
+          }
+
+          // 判斷金額數字
+          const numMatch = text.match(/\d+/);
+          const amount = numMatch ? parseInt(numMatch[0], 10) : null;
+          if (amount) {
+            if (form.value.currency === 'TWD') {
+              form.value.amount = amount;
+            } else {
+              form.value.foreignAmount = amount;
+              calcTwdAmount();
+            }
+          }
+
+          // 判斷分類
+          if (form.value.type === '收入') {
+            if (text.includes('薪水') || text.includes('薪資') || text.includes('發薪') || text.includes('上班')) {
+              form.value.category = '薪資收入';
+            } else {
+              form.value.category = categories.value.includes('其他') ? '其他' : categories.value[0];
+            }
+          } else {
+            if (text.match(/吃|喝|餐|飯|麵|咖啡|茶|早|午|晚|宵夜|飲料|點心/)) {
+              form.value.category = '餐飲飲食';
+            } else if (text.match(/買|全聯|超市|超商|生活|日用|菜|水果|肉/)) {
+              form.value.category = '日常採買';
+            } else if (text.match(/水|電|瓦斯|話費|網路|房租|管理費/)) {
+              form.value.category = '水電瓦斯';
+            } else if (text.match(/車|油|捷運|公車|高鐵|火車|計程車|uber|停車|保養/)) {
+              form.value.category = '交通保養';
+            } else if (text.match(/玩|門票|電影|旅遊|景點|伴手禮|機票|住宿/)) {
+              form.value.category = '旅遊玩耍';
+            } else if (text.match(/醫|藥|看病|診所|醫院|保健/)) {
+              form.value.category = '健康醫療';
+            }
+          }
+
+          form.value.note = text;
+        };
+
+        const onCurrencyChange = () => {
+          form.value.rate = defaultRates[form.value.currency] || 1;
+          if (form.value.currency !== 'TWD') form.value.isTravel = true;
+          calcTwdAmount();
+        };
+
+        const calcTwdAmount = () => {
+          if (form.value.currency === 'TWD') return;
+          const foreign = Number(form.value.foreignAmount) || 0;
+          const rate = Number(form.value.rate) || 0;
+          let twd = foreign * rate;
+          if (form.value.isCard) twd *= 1.015;
+          form.value.amount = Math.round(twd);
+        };
+
         const filteredTransactions = computed(() => {
           const matchMonth = selectedMonth.value.replace('年', '-').replace('月', '');
           return transactions.value.filter(t => (t.date || '').startsWith(matchMonth));
@@ -370,17 +584,25 @@
         });
 
         const addTransaction = () => {
-          if (!form.value.amount || form.value.amount <= 0) return alert('請輸入金額');
+          if (!form.value.amount || form.value.amount <= 0) return alert('請填寫金額');
           transactions.value.unshift({
             id: Date.now().toString(),
             date: new Date().toISOString().split('T')[0],
             type: form.value.type,
             category: form.value.category,
+            currency: form.value.currency,
+            foreignAmount: form.value.currency !== 'TWD' ? Number(form.value.foreignAmount) : null,
+            rate: form.value.currency !== 'TWD' ? Number(form.value.rate) : null,
+            isCard: form.value.isCard,
+            isTravel: form.value.isTravel,
             amount: Number(form.value.amount),
             note: form.value.note
           });
+
           form.value.amount = null;
+          form.value.foreignAmount = null;
           form.value.note = '';
+          voiceNotice.value = '';
           saveCloudData();
         };
 
@@ -497,7 +719,8 @@
           addTransaction, openEditModal, saveEditingItem, deleteEditingItem,
           getCategorySpent, getBudgetPercent, getBudgetColor, updateBudget,
           addCategory, removeCategory, weeklyShoppingCost, monthlyShoppingCost,
-          addShoppingItem, openEditShopItem, saveEditingShopItem, deleteShoppingItem, saveCloudData
+          addShoppingItem, openEditShopItem, saveEditingShopItem, deleteShoppingItem, saveCloudData,
+          onCurrencyChange, calcTwdAmount, isListening, voiceNotice, startVoiceInput
         };
       }
     }).mount('#app');
