@@ -3,678 +3,481 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>個人預算收支管理</title>
-
-  <!-- PWA 標籤設定 -->
+  <title>個人預算收支系統</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2563eb">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="記帳App">
-  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2936/2936758.png">
+  <meta name="apple-mobile-web-app-title" content="個人記帳">
 
-  <!-- Tailwind CSS & Vue 3 & Chart.js -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
   <style>
-    body {
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    }
-    input, textarea, select {
-      user-select: auto;
-    }
-    .pb-safe {
-      padding-bottom: env(safe-area-inset-bottom, 16px);
-    }
-    .pt-safe {
-      padding-top: env(safe-area-inset-top, 16px);
-    }
+    body { -webkit-tap-highlight-color: transparent; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-800 antialiased flex flex-col min-h-screen">
-  <div id="app" class="flex-1 flex flex-col max-w-md mx-auto w-full bg-slate-50 shadow-2xl relative">
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans pb-24 select-none">
+  <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col justify-between">
 
-    <!-- 頂部 Header -->
-    <header class="bg-blue-600 text-white pt-safe pb-4 px-4 shadow-md sticky top-0 z-30">
-      <div class="flex items-center justify-between mt-2">
-        <h1 class="text-xl font-bold tracking-wide flex items-center gap-2">
-          <span>📊</span> 個人預算收支
-        </h1>
-        <div class="flex items-center gap-2">
-          <button @click="loadCloudData(true)" class="bg-blue-700 active:bg-blue-800 text-white text-xs px-2.5 py-1.5 rounded-lg border border-blue-400">
-            🔄 同步
-          </button>
-          <input type="month" v-model="filterMonth" class="bg-blue-700 text-white text-xs font-semibold px-2 py-1.5 rounded-lg border border-blue-400 focus:outline-none">
-        </div>
-      </div>
-
-      <!-- 統計看板卡片 -->
-      <div class="grid grid-cols-2 gap-2 mt-4">
-        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 border border-white/20">
-          <div class="text-[11px] text-blue-100">本月總收入</div>
-          <div class="text-base font-bold text-emerald-300">NT$ {{ formatNumber(monthlyIncome) }}</div>
-        </div>
-        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 border border-white/20">
-          <div class="text-[11px] text-blue-100">本月總支出</div>
-          <div class="text-base font-bold text-rose-300">NT$ {{ formatNumber(monthlyExpense) }}</div>
-        </div>
-        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 border border-white/20">
-          <div class="text-[11px] text-blue-100">本月結餘</div>
-          <div class="text-base font-bold" :class="monthlyBalance >= 0 ? 'text-white' : 'text-rose-300'">
-            NT$ {{ formatNumber(monthlyBalance) }}
+    <div class="flex-1 flex flex-col">
+      <!-- 頂部深藍色看板 -->
+      <header class="bg-blue-600 text-white px-4 pt-4 pb-5 rounded-b-3xl shadow-md">
+        <div class="flex justify-between items-center mb-3">
+          <div class="flex items-center gap-2 font-bold text-lg">
+            <span>📊</span> 個人預算收支
           </div>
-        </div>
-        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-2.5 border border-white/20">
-          <div class="text-[11px] text-blue-100">總預算剩餘</div>
-          <div class="text-base font-bold" :class="monthlyRemainingBudget >= 0 ? 'text-purple-200' : 'text-rose-300'">
-            NT$ {{ formatNumber(monthlyRemainingBudget) }}
-          </div>
-        </div>
-      </div>
-    </header>
-
-    <!-- 主內容區 -->
-    <main class="flex-1 overflow-y-auto px-4 py-4 pb-24 space-y-4">
-
-      <!-- ================= Tab 1: 記帳與明細 ================= -->
-      <div v-show="activeTab === 'record'" class="space-y-4">
-        <!-- 記帳卡片 -->
-        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
-          <div class="flex bg-slate-100 p-1 rounded-xl mb-3">
-            <button @click="form.type = '支出'" :class="form.type === '支出' ? 'bg-rose-500 text-white shadow' : 'text-slate-600'" class="flex-1 py-1.5 rounded-lg text-sm font-bold transition">支出</button>
-            <button @click="form.type = '收入'" :class="form.type === '收入' ? 'bg-emerald-600 text-white shadow' : 'text-slate-600'" class="flex-1 py-1.5 rounded-lg text-sm font-bold transition">收入</button>
-          </div>
-
-          <div class="space-y-3">
-            <!-- 分類選擇 + 快捷自訂 -->
-            <div>
-              <div class="flex justify-between items-center mb-1">
-                <label class="text-xs font-semibold text-slate-500">項目分類</label>
-                <button @click="openQuickAddCat" class="text-xs text-blue-600 font-bold">＋ 自訂新分類</button>
-              </div>
-              <div class="flex gap-2">
-                <select v-model="form.category" class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                  <option v-for="cat in currentCategories" :key="cat" :value="cat">{{ cat }}</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- 金額與日期 -->
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="text-xs font-semibold text-slate-500 mb-1 block">金額 (NT$)</label>
-                <input type="number" v-model.number="form.amount" placeholder="0" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-base font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-              </div>
-              <div>
-                <label class="text-xs font-semibold text-slate-500 mb-1 block">日期</label>
-                <input type="date" v-model="form.date" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-2 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none">
-              </div>
-            </div>
-
-            <!-- 備註 -->
-            <div>
-              <label class="text-xs font-semibold text-slate-500 mb-1 block">備註說明 (選填)</label>
-              <input type="text" v-model="form.note" placeholder="例：午餐、加油..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-            </div>
-
-            <button @click="addTransaction" class="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-md hover:bg-blue-700 active:scale-[0.98] transition">
-              ＋ 加入此筆記錄 (同步雲端)
+          <div class="flex items-center gap-2">
+            <button @click="loadCloudData" class="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg flex items-center gap-1 transition">
+              <span>🔄</span> 更新
             </button>
-          </div>
-        </div>
-
-        <!-- 當月記錄清單 -->
-        <div class="space-y-2">
-          <div class="flex justify-between items-center px-1">
-            <h3 class="text-xs font-bold text-slate-500 tracking-wider">本月明細 ({{ monthlyTransactions.length }} 筆)</h3>
-            <span class="text-[11px] text-slate-400">點擊項目可修改或刪除</span>
-          </div>
-
-          <div v-if="monthlyTransactions.length === 0" class="bg-white rounded-2xl p-8 text-center text-slate-400 text-sm border border-slate-200">
-            本月尚無任何收支記錄 🍃
-          </div>
-
-          <div v-else class="space-y-2">
-            <div 
-              v-for="item in monthlyTransactions" 
-              :key="item.id" 
-              @click="openEditModal(item)"
-              class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between active:bg-slate-50 transition cursor-pointer"
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm" :class="item.type === '收入' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'">
-                  {{ item.type === '收入' ? '入' : '支' }}
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm flex items-center gap-1.5">
-                    {{ item.category }}
-                    <span v-if="item.note" class="text-xs font-normal text-slate-400 truncate max-w-[120px]">({{ item.note }})</span>
-                  </div>
-                  <div class="text-[11px] text-slate-400">{{ item.date }}</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-base" :class="item.type === '收入' ? 'text-emerald-600' : 'text-slate-800'">
-                  {{ item.type === '收入' ? '+' : '-' }} NT$ {{ formatNumber(item.amount) }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ================= Tab 2: 預算細項控管 ================= -->
-      <div v-show="activeTab === 'budget'" class="space-y-4">
-        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
-          <h3 class="font-bold text-slate-800 text-sm">🎯 設定各分類預算目標</h3>
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="text-xs font-semibold text-slate-500 mb-1 block">支出分類</label>
-              <select v-model="budgetEdit.category" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-2 py-2 text-sm font-medium">
-                <option v-for="cat in appData.expenseCategories" :key="cat" :value="cat">{{ cat }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="text-xs font-semibold text-slate-500 mb-1 block">每月預算 (NT$)</label>
-              <input type="number" v-model.number="budgetEdit.amount" placeholder="0" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold">
-            </div>
-          </div>
-          <div class="flex gap-2">
-            <button @click="saveBudget" class="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow">
-              💾 儲存預算
-            </button>
-            <button @click="clearBudget" class="py-2.5 px-3 bg-slate-200 text-slate-600 rounded-xl text-sm font-bold">
-              清除歸零
-            </button>
-          </div>
-        </div>
-
-        <!-- 預算進度清單 -->
-        <div class="space-y-2">
-          <h3 class="text-xs font-bold text-slate-500 tracking-wider px-1">本月預算執行進度</h3>
-          <div v-for="b in budgetProgressList" :key="b.category" class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 space-y-2">
-            <div class="flex justify-between items-center">
-              <div class="font-bold text-slate-800 text-sm">{{ b.category }}</div>
-              <span class="text-xs px-2 py-0.5 rounded-full font-bold" :class="b.statusClass">
-                {{ b.statusText }} ({{ b.ratio.toFixed(0) }}%)
-              </span>
-            </div>
-
-            <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-              <div class="h-full transition-all duration-500 rounded-full" :class="b.barColorClass" :style="{ width: Math.min(100, b.ratio) + '%' }"></div>
-            </div>
-
-            <div class="flex justify-between text-xs text-slate-500">
-              <span>已花費: NT$ {{ formatNumber(b.spent) }}</span>
-              <span>上限: NT$ {{ formatNumber(b.budget) }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ================= Tab 3: 圖表分析 ================= -->
-      <div v-show="activeTab === 'charts'" class="space-y-4">
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-          <h3 class="font-bold text-slate-800 text-sm mb-3">支出分類圓餅圖</h3>
-          <div class="relative h-64 flex items-center justify-center">
-            <canvas id="pieChart"></canvas>
-          </div>
-        </div>
-
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-          <h3 class="font-bold text-slate-800 text-sm mb-3">預算 vs 支出對比圖</h3>
-          <div class="relative h-64 flex items-center justify-center">
-            <canvas id="barChart"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <!-- ================= Tab 4: 分類與資料管理 ================= -->
-      <div v-show="activeTab === 'manage'" class="space-y-4">
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 space-y-3">
-          <h3 class="font-bold text-slate-800 text-sm">🏷️ 自訂分類管理</h3>
-          
-          <div class="flex bg-slate-100 p-1 rounded-xl">
-            <button @click="manageType = '支出'" :class="manageType === '支出' ? 'bg-white shadow text-slate-800' : 'text-slate-500'" class="flex-1 py-1 text-xs font-bold rounded-lg transition">支出分類</button>
-            <button @click="manageType = '收入'" :class="manageType === '收入' ? 'bg-white shadow text-slate-800' : 'text-slate-500'" class="flex-1 py-1 text-xs font-bold rounded-lg transition">收入分類</button>
-          </div>
-
-          <div class="flex gap-2">
-            <input type="text" v-model="newCatName" placeholder="輸入新分類名稱..." class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm">
-            <button @click="addNewCategory" class="px-4 bg-blue-600 text-white rounded-xl text-sm font-bold shadow">新增</button>
-          </div>
-
-          <div class="divide-y divide-slate-100 max-h-48 overflow-y-auto border border-slate-100 rounded-xl">
-            <div v-for="cat in (manageType === '支出' ? appData.expenseCategories : appData.incomeCategories)" :key="cat" class="py-2 px-3 flex justify-between items-center text-sm">
-              <span class="font-medium text-slate-700">{{ cat }}</span>
-              <div class="flex gap-1">
-                <button @click="renameCategory(cat)" class="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-lg font-bold">更名</button>
-                <button @click="deleteCategory(cat)" class="text-xs text-rose-600 bg-rose-50 px-2 py-1 rounded-lg font-bold">刪除</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 報表匯出 -->
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 space-y-3">
-          <h3 class="font-bold text-slate-800 text-sm">📤 報表匯出</h3>
-          <button @click="exportCSV(true)" class="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow">
-            📊 匯出本月 CSV 報表 (Excel 不亂碼)
-          </button>
-          <button @click="exportCSV(false)" class="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow">
-            📚 匯出全年度總明細 (CSV)
-          </button>
-        </div>
-      </div>
-    </main>
-
-    <!-- 底部導航欄 -->
-    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-md border-t border-slate-200 flex justify-around py-2 pb-safe z-30">
-      <button @click="switchTab('record')" :class="activeTab === 'record' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center gap-1 flex-1">
-        <span class="text-lg">📋</span>
-        <span class="text-[10px] font-bold">收支記帳</span>
-      </button>
-      <button @click="switchTab('budget')" :class="activeTab === 'budget' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center gap-1 flex-1">
-        <span class="text-lg">🎯</span>
-        <span class="text-[10px] font-bold">預算控管</span>
-      </button>
-      <button @click="switchTab('charts')" :class="activeTab === 'charts' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center gap-1 flex-1">
-        <span class="text-lg">📊</span>
-        <span class="text-[10px] font-bold">圖表分析</span>
-      </button>
-      <button @click="switchTab('manage')" :class="activeTab === 'manage' ? 'text-blue-600' : 'text-slate-400'" class="flex flex-col items-center gap-1 flex-1">
-        <span class="text-lg">⚙️</span>
-        <span class="text-[10px] font-bold">管理設定</span>
-      </button>
-    </nav>
-
-    <!-- 編輯彈窗 -->
-    <div v-if="editModal.visible" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4">
-        <div class="flex justify-between items-center">
-          <h3 class="text-base font-bold text-slate-800">✏️ 修改收支記錄</h3>
-          <button @click="editModal.visible = false" class="text-slate-400 text-lg font-bold">✕</button>
-        </div>
-
-        <div class="flex bg-slate-100 p-1 rounded-xl">
-          <button @click="editModal.item.type = '支出'" :class="editModal.item.type === '支出' ? 'bg-rose-500 text-white shadow' : 'text-slate-600'" class="flex-1 py-1 rounded-lg text-xs font-bold">支出</button>
-          <button @click="editModal.item.type = '收入'" :class="editModal.item.type === '收入' ? 'bg-emerald-600 text-white shadow' : 'text-slate-600'" class="flex-1 py-1 rounded-lg text-xs font-bold">收入</button>
-        </div>
-
-        <div class="space-y-3">
-          <div>
-            <label class="text-xs font-semibold text-slate-500 mb-1 block">項目分類</label>
-            <select v-model="editModal.item.category" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm">
-              <option v-for="cat in (editModal.item.type === '支出' ? appData.expenseCategories : appData.incomeCategories)" :key="cat" :value="cat">{{ cat }}</option>
+            <select v-model="selectedMonth" class="bg-white/20 text-xs px-2.5 py-1 rounded-lg outline-none font-medium text-white border-none cursor-pointer">
+              <option v-for="m in monthList" :key="m" :value="m" class="text-slate-800">{{ m }}</option>
             </select>
           </div>
+        </div>
 
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="text-xs font-semibold text-slate-500 mb-1 block">金額 (NT$)</label>
-              <input type="number" v-model.number="editModal.item.amount" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-base font-bold">
+        <div class="grid grid-cols-2 gap-2 mt-2">
+          <div class="bg-white/15 backdrop-blur-sm p-2.5 rounded-2xl">
+            <div class="text-[11px] text-blue-100">本月總收入</div>
+            <div class="text-base font-bold mt-0.5">NT$ {{ currentMonthIncome.toLocaleString() }}</div>
+          </div>
+          <div class="bg-white/15 backdrop-blur-sm p-2.5 rounded-2xl">
+            <div class="text-[11px] text-blue-100">本月總支出</div>
+            <div class="text-base font-bold mt-0.5">NT$ {{ currentMonthExpense.toLocaleString() }}</div>
+          </div>
+          <div class="bg-white/15 backdrop-blur-sm p-2.5 rounded-2xl">
+            <div class="text-[11px] text-blue-100">本月結餘</div>
+            <div class="text-base font-bold mt-0.5">NT$ {{ (currentMonthIncome - currentMonthExpense).toLocaleString() }}</div>
+          </div>
+          <div class="bg-white/15 backdrop-blur-sm p-2.5 rounded-2xl">
+            <div class="text-[11px] text-blue-100">總預算剩餘</div>
+            <div class="text-base font-bold mt-0.5">NT$ {{ remainingBudget.toLocaleString() }}</div>
+          </div>
+        </div>
+      </header>
+
+      <!-- 主要內容區 -->
+      <main class="p-4 flex-1">
+
+        <!-- 分頁 1：收支記帳 -->
+        <div v-show="currentTab === 'records'" class="space-y-4">
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+            <div class="grid grid-cols-2 gap-2 mb-2">
+              <select v-model="form.type" class="p-2 border rounded-xl text-sm bg-slate-50 font-medium">
+                <option value="支出">支出</option>
+                <option value="收入">收入</option>
+              </select>
+              <select v-model="form.category" class="p-2 border rounded-xl text-sm bg-slate-50 font-medium">
+                <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
+              </select>
             </div>
-            <div>
-              <label class="text-xs font-semibold text-slate-500 mb-1 block">日期</label>
-              <input type="date" v-model="editModal.item.date" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-2 py-2 text-sm">
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <input v-model.number="form.amount" type="number" placeholder="金額" class="p-2 border rounded-xl text-sm outline-none bg-slate-50">
+              <input v-model="form.note" placeholder="例：午餐、加油..." class="p-2 border rounded-xl text-sm outline-none bg-slate-50">
             </div>
+            <button @click="addTransaction" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm shadow-sm transition">
+              + 加入此筆記錄
+            </button>
           </div>
 
           <div>
-            <label class="text-xs font-semibold text-slate-500 mb-1 block">備註說明</label>
-            <input type="text" v-model="editModal.item.note" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm">
+            <div class="flex justify-between items-center mb-2 px-1">
+              <div class="text-xs font-bold text-slate-600">本月明細 ({{ filteredTransactions.length }} 筆)</div>
+              <div class="text-[11px] text-slate-400">點擊項目可修改或刪除</div>
+            </div>
+
+            <div v-if="filteredTransactions.length === 0" class="p-8 text-center text-xs text-slate-400 bg-white rounded-2xl border border-slate-100">
+              這個月還沒有記帳紀錄喔！
+            </div>
+
+            <div class="space-y-2">
+              <div v-for="item in filteredTransactions" :key="item.id" @click="openEditModal(item)" class="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between active:scale-[0.99] transition cursor-pointer">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs" :class="item.type === '支出' ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-500'">
+                    {{ item.type === '支出' ? '支' : '收' }}
+                  </div>
+                  <div>
+                    <div class="text-sm font-semibold text-slate-800">
+                      {{ item.category }} <span v-if="item.note" class="text-xs font-normal text-slate-400">({{ item.note }})</span>
+                    </div>
+                    <div class="text-[11px] text-slate-400">{{ item.date }}</div>
+                  </div>
+                </div>
+                <div class="text-sm font-bold" :class="item.type === '支出' ? 'text-slate-800' : 'text-emerald-600'">
+                  {{ item.type === '支出' ? '- NT$ ' : '+ NT$ ' }}{{ Number(item.amount).toLocaleString() }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分頁 2：預算控管 -->
+        <div v-show="currentTab === 'budgets'" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+          <div class="text-sm font-bold text-slate-800 flex justify-between items-center">
+            <span>🎯 各類別預算進度</span>
+            <span class="text-xs text-slate-400">每月固定預算</span>
+          </div>
+          <div class="space-y-3">
+            <div v-for="cat in categories" :key="cat" class="p-3 bg-slate-50 rounded-xl">
+              <div class="flex justify-between items-center text-xs font-semibold mb-1.5">
+                <span>{{ cat }}</span>
+                <span class="text-slate-500">已花費: NT$ {{ getCategorySpent(cat).toLocaleString() }} | 預算: NT$ {{ (categoryBudgets[cat] || 0).toLocaleString() }}</span>
+              </div>
+              <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                <div class="h-full transition-all duration-300" :style="{ width: getBudgetPercent(cat) + '%', backgroundColor: getBudgetColor(cat) }"></div>
+              </div>
+              <div class="mt-2 flex items-center gap-2">
+                <span class="text-[11px] text-slate-400">設定預算:</span>
+                <input type="number" :value="categoryBudgets[cat] || 0" @change="updateBudget(cat, $event.target.value)" class="w-24 px-2 py-0.5 text-xs bg-white border rounded outline-none">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分頁 3：圖表分析 -->
+        <div v-show="currentTab === 'charts'" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+          <div class="text-sm font-bold text-slate-800 mb-3">📊 {{ selectedMonth }} 支出比例</div>
+          <div class="relative h-64 flex items-center justify-center">
+            <canvas id="expenseChart"></canvas>
+          </div>
+        </div>
+
+        <!-- 分頁 4：管理設定 -->
+        <div v-show="currentTab === 'settings'" class="space-y-4">
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+            <div class="text-sm font-bold text-slate-800 mb-2">🏷️ 類別管理</div>
+            <div class="flex gap-2 mb-3">
+              <input v-model="newCategoryName" placeholder="新分類名稱" class="flex-1 p-2 text-xs border rounded-xl bg-slate-50 outline-none">
+              <button @click="addCategory" class="px-4 bg-blue-600 text-white font-bold text-xs rounded-xl">新增</button>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <span v-for="cat in categories" :key="cat" class="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs flex items-center gap-1.5">
+                {{ cat }}
+                <button @click="removeCategory(cat)" class="text-slate-400 hover:text-rose-500">✕</button>
+              </span>
+            </div>
+          </div>
+        </div>
+
+      </main>
+
+      <!-- 底部導航欄 -->
+      <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200 grid grid-cols-4 py-2 z-40">
+        <button @click="switchTab('records')" class="flex flex-col items-center py-1 text-xs" :class="currentTab === 'records' ? 'text-blue-600 font-bold' : 'text-slate-400'">
+          <span class="text-base">📋</span>
+          <span class="mt-0.5">收支記帳</span>
+        </button>
+        <button @click="switchTab('budgets')" class="flex flex-col items-center py-1 text-xs" :class="currentTab === 'budgets' ? 'text-blue-600 font-bold' : 'text-slate-400'">
+          <span class="text-base">🎯</span>
+          <span class="mt-0.5">預算控管</span>
+        </button>
+        <button @click="switchTab('charts')" class="flex flex-col items-center py-1 text-xs" :class="currentTab === 'charts' ? 'text-blue-600 font-bold' : 'text-slate-400'">
+          <span class="text-base">📊</span>
+          <span class="mt-0.5">圖表分析</span>
+        </button>
+        <button @click="switchTab('settings')" class="flex flex-col items-center py-1 text-xs" :class="currentTab === 'settings' ? 'text-blue-600 font-bold' : 'text-slate-400'">
+          <span class="text-base">⚙️</span>
+          <span class="mt-0.5">管理設定</span>
+        </button>
+      </nav>
+
+      <!-- 浮動按鈕：🛒 採購清單 -->
+      <button @click="showShoppingModal = true" class="fixed bottom-20 right-4 z-40 bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-full shadow-lg font-bold text-xs flex items-center gap-1.5 transition">
+        <span>🛒</span> 採購清單
+      </button>
+
+      <!-- 採購清單彈窗 -->
+      <div v-if="showShoppingModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-sm w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+          <div class="p-4 bg-slate-50 border-b flex justify-between items-center">
+            <div class="font-bold text-slate-800 text-sm">🛒 採購清單與支出試算</div>
+            <button @click="showShoppingModal = false" class="text-slate-400 text-lg">✕</button>
+          </div>
+          <div class="p-3 bg-blue-50 grid grid-cols-2 gap-2 border-b border-blue-100">
+            <div class="bg-white p-2 rounded-xl text-center border border-blue-100">
+              <div class="text-[10px] text-blue-600 font-semibold">每週預估</div>
+              <div class="text-sm font-bold text-blue-800">NT$ {{ weeklyShoppingCost.toLocaleString() }}</div>
+            </div>
+            <div class="bg-white p-2 rounded-xl text-center border border-blue-100">
+              <div class="text-[10px] text-indigo-600 font-semibold">每月預估 (週×4+月)</div>
+              <div class="text-sm font-bold text-indigo-800">NT$ {{ monthlyShoppingCost.toLocaleString() }}</div>
+            </div>
+          </div>
+          <div class="p-3 border-b flex gap-1.5 bg-white">
+            <input v-model="newShopItem.name" placeholder="品名" class="flex-2 w-full p-2 text-xs border rounded-lg outline-none bg-slate-50">
+            <select v-model="newShopItem.cycle" class="p-2 text-xs border rounded-lg bg-slate-50">
+              <option value="weekly">每週</option>
+              <option value="monthly">每月</option>
+            </select>
+            <input v-model.number="newShopItem.price" type="number" placeholder="金額" class="w-16 p-2 text-xs border rounded-lg outline-none bg-slate-50">
+            <button @click="addShoppingItem" class="bg-emerald-600 text-white text-xs px-3 rounded-lg font-bold">新增</button>
           </div>
 
-          <div class="flex gap-2 pt-2">
-            <button @click="saveEditTransaction" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow">
-              💾 儲存修改
-            </button>
-            <button @click="deleteModalTransaction" class="py-3 px-4 bg-rose-100 text-rose-600 rounded-xl font-bold">
-              🗑️ 刪除
-            </button>
+          <!-- 清單項目區（無範例） -->
+          <div class="p-3 overflow-y-auto flex-1 divide-y divide-slate-100">
+            <div v-if="shoppingList.length === 0" class="p-8 text-center text-xs text-slate-400">
+              目前清單是空的，歡迎新增採購品項！
+            </div>
+            <div v-for="(item, idx) in shoppingList" :key="item.id || idx" class="py-2.5 flex items-center justify-between">
+              <label class="flex items-center gap-2 overflow-hidden flex-1 cursor-pointer">
+                <input type="checkbox" v-model="item.done" @change="saveCloudData" class="w-4 h-4 rounded text-blue-600">
+                <span :class="{'line-through text-slate-300': item.done}" class="text-xs text-slate-700 truncate">{{ item.name }}</span>
+                <span class="text-[10px] px-1.5 py-0.2 rounded" :class="item.cycle === 'weekly' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'">
+                  {{ item.cycle === 'weekly' ? '每週' : '每月' }}
+                </span>
+              </label>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold text-slate-600">NT$ {{ item.price }}</span>
+                <!-- 修改鈕 -->
+                <button @click="openEditShopItem(item)" class="text-blue-500 hover:text-blue-700 text-xs px-1 font-medium">修改</button>
+                <!-- 刪除鈕 -->
+                <button @click="deleteShoppingItem(idx)" class="text-slate-300 hover:text-rose-500 text-xs px-1">✕</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
+      <!-- 採購品項修改彈窗 -->
+      <div v-if="editingShopItem" class="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+          <div class="text-sm font-bold text-slate-800">✏️ 修改採購品項</div>
+          <input v-model="editingShopItem.name" placeholder="品名" class="w-full p-2 border rounded-xl text-xs bg-slate-50 outline-none">
+          <div class="grid grid-cols-2 gap-2">
+            <select v-model="editingShopItem.cycle" class="p-2 border rounded-xl text-xs bg-slate-50">
+              <option value="weekly">每週</option>
+              <option value="monthly">每月</option>
+            </select>
+            <input v-model.number="editingShopItem.price" type="number" placeholder="金額" class="p-2 border rounded-xl text-xs bg-slate-50 outline-none">
+          </div>
+          <div class="flex gap-2 pt-1">
+            <button @click="editingShopItem = null" class="flex-1 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold">取消</button>
+            <button @click="saveEditingShopItem" class="flex-1 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold">保存修改</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 記帳明細修改彈窗 -->
+      <div v-if="editingItem" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-3 shadow-2xl">
+          <div class="text-sm font-bold text-slate-800">修改或刪除記錄</div>
+          <div class="grid grid-cols-2 gap-2">
+            <select v-model="editingItem.type" class="p-2 border rounded-xl text-xs bg-slate-50">
+              <option value="支出">支出</option>
+              <option value="收入">收入</option>
+            </select>
+            <select v-model="editingItem.category" class="p-2 border rounded-xl text-xs bg-slate-50">
+              <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
+            </select>
+          </div>
+          <input v-model.number="editingItem.amount" type="number" class="w-full p-2 border rounded-xl text-xs bg-slate-50 outline-none">
+          <input v-model="editingItem.note" placeholder="備註" class="w-full p-2 border rounded-xl text-xs bg-slate-50 outline-none">
+          <div class="flex gap-2 pt-2">
+            <button @click="deleteEditingItem" class="flex-1 py-2 bg-rose-50 text-rose-600 rounded-xl font-bold text-xs">刪除記錄</button>
+            <button @click="saveEditingItem" class="flex-1 py-2 bg-blue-600 text-white rounded-xl font-bold text-xs">保存修改</button>
+          </div>
+          <button @click="editingItem = null" class="w-full py-1.5 text-slate-400 text-xs text-center">取消</button>
+        </div>
+      </div>
+
+    </div>
   </div>
 
   <script>
-    const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
+    const FIREBASE_URL = "https://my-budget-sync-d358e-default-rtdb.firebaseio.com/data.json?auth=BqfQQwEgoZdSWmjtiGZ7RP7U69vgGrQRCmBjHY64";
+    const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
     createApp({
       setup() {
-        const activeTab = ref('record');
-        const manageType = ref('支出');
-        const filterMonth = ref(new Date().toISOString().substring(0, 7));
+        const currentTab = ref('records');
+        const transactions = ref([]);
+        const categories = ref(["餐飲飲食", "日常採買", "水電瓦斯", "交通保養", "旅遊玩耍", "健康醫療", "其他"]);
+        const categoryBudgets = ref({ "餐飲飲食": 10000, "日常採買": 5000, "水電瓦斯": 3000, "交通保養": 3000, "旅遊玩耍": 4000 });
+        const shoppingList = ref([]);
 
-        // ⚠️ 你的 Firebase 專屬同步網址
-        const FIREBASE_URL = "https://my-budget-sync-d358e-default-rtdb.firebaseio.com/data.json?auth=BqfQQwEgoZdSWmjtiGZ7RP7U69vgGrQRCmBjHY64";
+        const showShoppingModal = ref(false);
+        const editingItem = ref(null);
+        const editingShopItem = ref(null);
+        const newCategoryName = ref('');
 
-        const defaultData = {
-          expenseCategories: ["餐飲飲食", "日常採買", "水電瓦斯", "交通運輸", "休閒娛樂", "健康醫療", "其他支出"],
-          incomeCategories: ["薪資收入", "投資收益", "獎金補貼", "副業接案", "其他收入"],
-          categoryBudgets: {
-            "餐飲飲食": 10000,
-            "日常採買": 5000,
-            "水電瓦斯": 3000,
-            "交通運輸": 3000,
-            "休閒娛樂": 4000,
-            "健康醫療": 2000,
-            "其他支出": 3000
-          },
-          transactions: []
+        const form = ref({ type: '支出', category: '餐飲飲食', amount: null, note: '' });
+        const newShopItem = ref({ name: '', cycle: 'weekly', price: null });
+
+        const selectedMonth = ref(new Date().toISOString().slice(0, 7).replace('-', '年') + '月');
+        const monthList = computed(() => {
+          const list = [];
+          const now = new Date();
+          for (let i = 0; i < 6; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            list.push(`${d.getFullYear()}年${String(d.getMonth() + 1).padStart(2, '0')}月`);
+          }
+          return list;
+        });
+
+        let chartInstance = null;
+
+        const loadCloudData = async () => {
+          try {
+            const res = await fetch(FIREBASE_URL);
+            if (res.ok) {
+              const val = await res.json() || {};
+              transactions.value = val.transactions || [];
+              if (val.categories) categories.value = val.categories;
+              if (val.categoryBudgets) categoryBudgets.value = val.categoryBudgets;
+              shoppingList.value = val.shoppingList || []; // 預設無範例
+              renderChart();
+            }
+          } catch (e) {
+            console.error('連線異常:', e);
+          }
         };
 
-        const appData = ref(JSON.parse(localStorage.getItem('budget_pwa_data')) || defaultData);
-
-        const form = ref({
-          type: '支出',
-          category: '餐飲飲食',
-          amount: null,
-          date: new Date().toISOString().substring(0, 10),
-          note: ''
-        });
-
-        const budgetEdit = ref({
-          category: '餐飲飲食',
-          amount: 10000
-        });
-
-        const newCatName = ref('');
-        const editModal = ref({ visible: false, item: null });
-
-        let pieChartInstance = null;
-        let barChartInstance = null;
-
-        // 雲端同步儲存
-        const saveData = async () => {
-          localStorage.setItem('budget_pwa_data', JSON.stringify(appData.value));
+        const saveCloudData = async () => {
           try {
             await fetch(FIREBASE_URL, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(appData.value)
+              body: JSON.stringify({
+                transactions: transactions.value,
+                categories: categories.value,
+                categoryBudgets: categoryBudgets.value,
+                shoppingList: shoppingList.value
+              })
             });
-          } catch (err) {
-            console.log('雲端同步失敗，已儲存於本地快取', err);
+            renderChart();
+          } catch (e) {
+            console.error('儲存失敗:', e);
           }
         };
 
-        // 雲端載入
-        const loadCloudData = async (showNotice = false) => {
-          try {
-            const res = await fetch(FIREBASE_URL);
-            const cloudData = await res.json();
-            if (cloudData && cloudData.transactions) {
-              appData.value = cloudData;
-              localStorage.setItem('budget_pwa_data', JSON.stringify(cloudData));
-              renderCharts();
-              if (showNotice) alert('☁️ 資料同步成功！');
-            }
-          } catch (err) {
-            console.log('無法連線雲端，讀取本機快取');
-          }
-        };
-
-        const currentCategories = computed(() => {
-          return form.value.type === '支出' ? appData.value.expenseCategories : appData.value.incomeCategories;
+        onMounted(() => {
+          loadCloudData();
         });
 
-        watch(() => form.value.type, (newType) => {
-          const list = newType === '支出' ? appData.value.expenseCategories : appData.value.incomeCategories;
-          form.value.category = list[0] || '';
+        const filteredTransactions = computed(() => {
+          const matchMonth = selectedMonth.value.replace('年', '-').replace('月', '');
+          return transactions.value.filter(t => (t.date || '').startsWith(matchMonth));
         });
 
-        const monthlyTransactions = computed(() => {
-          return (appData.value.transactions || [])
-            .filter(t => t.date.startsWith(filterMonth.value))
-            .sort((a, b) => new Date(b.date) - new Date(a.date));
+        const currentMonthIncome = computed(() => filteredTransactions.value.filter(t => t.type === '收入').reduce((s, t) => s + Number(t.amount || 0), 0));
+        const currentMonthExpense = computed(() => filteredTransactions.value.filter(t => t.type === '支出').reduce((s, t) => s + Number(t.amount || 0), 0));
+        const remainingBudget = computed(() => {
+          const totalBudget = Object.values(categoryBudgets.value).reduce((s, v) => s + Number(v || 0), 0);
+          return totalBudget - currentMonthExpense.value;
         });
 
-        const monthlyIncome = computed(() => {
-          return monthlyTransactions.value.filter(t => t.type === '收入').reduce((sum, t) => sum + Number(t.amount || 0), 0);
-        });
-
-        const monthlyExpense = computed(() => {
-          return monthlyTransactions.value.filter(t => t.type === '支出').reduce((sum, t) => sum + Number(t.amount || 0), 0);
-        });
-
-        const monthlyBalance = computed(() => monthlyIncome.value - monthlyExpense.value);
-
-        const totalBudget = computed(() => {
-          let sum = 0;
-          for (let cat of (appData.value.expenseCategories || [])) {
-            sum += Number(appData.value.categoryBudgets?.[cat] || 0);
-          }
-          return sum;
-        });
-
-        const monthlyRemainingBudget = computed(() => totalBudget.value - monthlyExpense.value);
-
-        const budgetProgressList = computed(() => {
-          const expenses = monthlyTransactions.value.filter(t => t.type === '支出');
-          return (appData.value.expenseCategories || []).map(cat => {
-            const budget = Number(appData.value.categoryBudgets?.[cat] || 0);
-            const spent = expenses.filter(t => t.category === cat).reduce((sum, t) => sum + Number(t.amount || 0), 0);
-            const ratio = budget > 0 ? (spent / budget) * 100 : 0;
-
-            let statusText = '正常';
-            let statusClass = 'bg-emerald-100 text-emerald-700';
-            let barColorClass = 'bg-emerald-500';
-
-            if (budget > 0 && spent > budget) {
-              statusText = '超支';
-              statusClass = 'bg-rose-100 text-rose-700';
-              barColorClass = 'bg-rose-500';
-            } else if (budget > 0 && ratio >= 80) {
-              statusText = '接近上限';
-              statusClass = 'bg-amber-100 text-amber-700';
-              barColorClass = 'bg-amber-500';
-            }
-
-            return { category: cat, budget, spent, ratio, statusText, statusClass, barColorClass };
-          });
-        });
-
-        const addTransaction = async () => {
-          if (!form.value.amount || form.value.amount <= 0) {
-            alert('請輸入大於 0 的金額！');
-            return;
-          }
-          if (!appData.value.transactions) appData.value.transactions = [];
-          appData.value.transactions.push({
-            id: crypto.randomUUID(),
+        const addTransaction = () => {
+          if (!form.value.amount || form.value.amount <= 0) return alert('請輸入金額');
+          transactions.value.unshift({
+            id: Date.now().toString(),
+            date: new Date().toISOString().split('T')[0],
             type: form.value.type,
             category: form.value.category,
             amount: Number(form.value.amount),
-            date: form.value.date,
-            note: (form.value.note || '').trim()
+            note: form.value.note
           });
-          await saveData();
           form.value.amount = null;
           form.value.note = '';
-          renderCharts();
+          saveCloudData();
         };
 
-        const openQuickAddCat = () => {
-          const type = form.value.type;
-          const name = prompt(`請輸入新的「${type}」分類名稱：`);
-          if (name && name.trim()) {
-            const target = type === '支出' ? appData.value.expenseCategories : appData.value.incomeCategories;
-            if (!target.includes(name.trim())) {
-              target.push(name.trim());
-              if (type === '支出') {
-                if (!appData.value.categoryBudgets) appData.value.categoryBudgets = {};
-                appData.value.categoryBudgets[name.trim()] = 0;
-              }
-              saveData();
-              form.value.category = name.trim();
-            }
-          }
-        };
-
-        const openEditModal = (item) => {
-          editModal.value.item = JSON.parse(JSON.stringify(item));
-          editModal.value.visible = true;
-        };
-
-        const saveEditTransaction = async () => {
-          const idx = appData.value.transactions.findIndex(t => t.id === editModal.value.item.id);
+        const openEditModal = (item) => editingItem.value = { ...item };
+        const saveEditingItem = () => {
+          const idx = transactions.value.findIndex(t => t.id === editingItem.value.id);
           if (idx !== -1) {
-            appData.value.transactions[idx] = editModal.value.item;
-            await saveData();
-            editModal.value.visible = false;
-            renderCharts();
+            transactions.value[idx] = { ...editingItem.value };
+            saveCloudData();
+          }
+          editingItem.value = null;
+        };
+        const deleteEditingItem = () => {
+          transactions.value = transactions.value.filter(t => t.id !== editingItem.value.id);
+          saveCloudData();
+          editingItem.value = null;
+        };
+
+        const getCategorySpent = (cat) => filteredTransactions.value.filter(t => t.type === '支出' && t.category === cat).reduce((s, t) => s + Number(t.amount || 0), 0);
+        const getBudgetPercent = (cat) => {
+          const b = categoryBudgets.value[cat] || 0;
+          return b <= 0 ? 0 : Math.min(100, Math.round((getCategorySpent(cat) / b) * 100));
+        };
+        const getBudgetColor = (cat) => {
+          const p = getBudgetPercent(cat);
+          return p >= 100 ? '#ef4444' : p >= 80 ? '#f59e0b' : '#3b82f6';
+        };
+        const updateBudget = (cat, val) => {
+          categoryBudgets.value[cat] = Number(val) || 0;
+          saveCloudData();
+        };
+
+        const addCategory = () => {
+          const name = newCategoryName.value.trim();
+          if (name && !categories.value.includes(name)) {
+            categories.value.push(name);
+            newCategoryName.value = '';
+            saveCloudData();
           }
         };
-
-        const deleteModalTransaction = async () => {
-          if (confirm('確定要刪除這筆記錄嗎？')) {
-            appData.value.transactions = appData.value.transactions.filter(t => t.id !== editModal.value.item.id);
-            await saveData();
-            editModal.value.visible = false;
-            renderCharts();
-          }
+        const removeCategory = (cat) => {
+          categories.value = categories.value.filter(c => c !== cat);
+          saveCloudData();
         };
 
-        const saveBudget = async () => {
-          if (!appData.value.categoryBudgets) appData.value.categoryBudgets = {};
-          appData.value.categoryBudgets[budgetEdit.value.category] = Number(budgetEdit.value.amount || 0);
-          await saveData();
-          alert(`已更新「${budgetEdit.value.category}」預算！`);
-          renderCharts();
-        };
-
-        const clearBudget = async () => {
-          if (!appData.value.categoryBudgets) appData.value.categoryBudgets = {};
-          appData.value.categoryBudgets[budgetEdit.value.category] = 0;
-          budgetEdit.value.amount = 0;
-          await saveData();
-          alert(`已清空預算！`);
-          renderCharts();
-        };
-
-        watch(() => budgetEdit.value.category, (cat) => {
-          budgetEdit.value.amount = appData.value.categoryBudgets?.[cat] || 0;
+        const weeklyShoppingCost = computed(() => shoppingList.value.filter(i => i.cycle === 'weekly').reduce((s, i) => s + Number(i.price || 0), 0));
+        const monthlyShoppingCost = computed(() => {
+          const mItems = shoppingList.value.filter(i => i.cycle === 'monthly').reduce((s, i) => s + Number(i.price || 0), 0);
+          return (weeklyShoppingCost.value * 4) + mItems;
         });
-
-        const addNewCategory = async () => {
-          const name = newCatName.value.trim();
-          if (!name) return;
-          const target = manageType.value === '支出' ? appData.value.expenseCategories : appData.value.incomeCategories;
-          if (target.includes(name)) {
-            alert('該分類已存在！');
-            return;
-          }
-          target.push(name);
-          if (manageType.value === '支出') {
-            if (!appData.value.categoryBudgets) appData.value.categoryBudgets = {};
-            appData.value.categoryBudgets[name] = 0;
-          }
-          await saveData();
-          newCatName.value = '';
-        };
-
-        const renameCategory = async (oldName) => {
-          const newName = prompt(`將「${oldName}」重新命名為：`, oldName);
-          if (newName && newName.trim() && newName.trim() !== oldName) {
-            const target = manageType.value === '支出' ? appData.value.expenseCategories : appData.value.incomeCategories;
-            const idx = target.indexOf(oldName);
-            if (idx !== -1) {
-              target[idx] = newName.trim();
-              if (manageType.value === '支出' && appData.value.categoryBudgets) {
-                const bVal = appData.value.categoryBudgets[oldName] || 0;
-                delete appData.value.categoryBudgets[oldName];
-                appData.value.categoryBudgets[newName.trim()] = bVal;
-              }
-              (appData.value.transactions || []).forEach(t => {
-                if (t.category === oldName) t.category = newName.trim();
-              });
-              await saveData();
-            }
-          }
-        };
-
-        const deleteCategory = async (cat) => {
-          const target = manageType.value === '支出' ? appData.value.expenseCategories : appData.value.incomeCategories;
-          if (target.length <= 1) {
-            alert('至少需保留一個分類！');
-            return;
-          }
-          if (confirm(`確定要刪除「${cat}」分類嗎？`)) {
-            const idx = target.indexOf(cat);
-            if (idx !== -1) target.splice(idx, 1);
-            if (manageType.value === '支出' && appData.value.categoryBudgets) delete appData.value.categoryBudgets[cat];
-            await saveData();
-          }
-        };
-
-        const exportCSV = (onlyMonth) => {
-          const list = onlyMonth ? monthlyTransactions.value : appData.value.transactions;
-          if (!list || list.length === 0) {
-            alert('查無資料可供匯出！');
-            return;
-          }
-          let csv = "\uFEFF記錄ID,日期,收支類型,項目分類,金額,備註\n";
-          list.forEach(item => {
-            const note = (item.note || '').replace(/"/g, '""');
-            csv += `"${item.id}","${item.date}","${item.type}","${item.category}",${item.amount},"${note}"\n`;
+        const addShoppingItem = () => {
+          if (!newShopItem.value.name) return alert('請輸入品項');
+          shoppingList.value.push({
+            id: Date.now(),
+            name: newShopItem.value.name,
+            cycle: newShopItem.value.cycle,
+            price: Number(newShopItem.value.price) || 0,
+            done: false
           });
-          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = onlyMonth ? `收支月報表_${filterMonth.value}.csv` : `收支總報表_${new Date().toISOString().substring(0,10)}.csv`;
-          a.click();
-          URL.revokeObjectURL(url);
+          newShopItem.value.name = '';
+          newShopItem.value.price = null;
+          saveCloudData();
+        };
+        const openEditShopItem = (item) => editingShopItem.value = { ...item };
+        const saveEditingShopItem = () => {
+          const idx = shoppingList.value.findIndex(i => i.id === editingShopItem.value.id);
+          if (idx !== -1) {
+            shoppingList.value[idx] = { ...editingShopItem.value };
+            saveCloudData();
+          }
+          editingShopItem.value = null;
+        };
+        const deleteShoppingItem = (idx) => {
+          shoppingList.value.splice(idx, 1);
+          saveCloudData();
         };
 
-        const renderCharts = () => {
+        const renderChart = () => {
           nextTick(() => {
-            const pieCtx = document.getElementById('pieChart');
-            const barCtx = document.getElementById('barChart');
-            if (!pieCtx || !barCtx) return;
-
-            const expenses = monthlyTransactions.value.filter(t => t.type === '支出');
+            const ctx = document.getElementById('expenseChart');
+            if (!ctx) return;
             const catMap = {};
-            expenses.forEach(t => {
-              catMap[t.category] = (catMap[t.category] || 0) + Number(t.amount);
+            filteredTransactions.value.filter(t => t.type === '支出').forEach(t => {
+              catMap[t.category] = (catMap[t.category] || 0) + Number(t.amount || 0);
             });
-
             const labels = Object.keys(catMap);
             const data = Object.values(catMap);
 
-            if (pieChartInstance) pieChartInstance.destroy();
-            pieChartInstance = new Chart(pieCtx, {
+            if (chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, {
               type: 'doughnut',
               data: {
                 labels: labels.length ? labels : ['無支出'],
                 datasets: [{
                   data: data.length ? data : [1],
-                  backgroundColor: ['#ef4444', '#f97316', '#eab308', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#64748b']
+                  backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#64748b']
                 }]
-              },
-              options: { responsive: true, maintainAspectRatio: false }
-            });
-
-            const barLabels = appData.value.expenseCategories || [];
-            const budgetData = barLabels.map(cat => appData.value.categoryBudgets?.[cat] || 0);
-            const spentData = barLabels.map(cat => expenses.filter(t => t.category === cat).reduce((s, t) => s + Number(t.amount), 0));
-
-            if (barChartInstance) barChartInstance.destroy();
-            barChartInstance = new Chart(barCtx, {
-              type: 'bar',
-              data: {
-                labels: barLabels,
-                datasets: [
-                  { label: '預算目標', data: budgetData, backgroundColor: '#c084fc' },
-                  { label: '實際支出', data: spentData, backgroundColor: '#f87171' }
-                ]
               },
               options: { responsive: true, maintainAspectRatio: false }
             });
@@ -682,164 +485,22 @@
         };
 
         const switchTab = (tab) => {
-          activeTab.value = tab;
-          if (tab === 'charts') renderCharts();
+          currentTab.value = tab;
+          if (tab === 'charts') renderChart();
         };
 
-        const formatNumber = (num) => Number(num || 0).toLocaleString();
-
-        watch(filterMonth, () => renderCharts());
-
-        onMounted(async () => {
-          await loadCloudData();
-          budgetEdit.value.amount = appData.value.categoryBudgets?.[budgetEdit.value.category] || 0;
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration error', err));
-          }
-        });
-        document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "visible") {
-                loadCloudData();
-            }
-        });
-
-        setInterval(() => {
-            loadCloudData();
-        }, 10000);
-
         return {
-          activeTab, manageType, filterMonth, appData, form, budgetEdit, newCatName, editModal,
-          currentCategories, monthlyTransactions, monthlyIncome, monthlyExpense, monthlyBalance,
-          totalBudget, monthlyRemainingBudget, budgetProgressList, loadCloudData,
-          addTransaction, openQuickAddCat, openEditModal, saveEditTransaction, deleteModalTransaction,
-          saveBudget, clearBudget, addNewCategory, renameCategory, deleteCategory,
-          exportCSV, switchTab, formatNumber
+          currentTab, transactions, categories, categoryBudgets, shoppingList,
+          showShoppingModal, editingItem, editingShopItem, newCategoryName, form, newShopItem,
+          selectedMonth, monthList, currentMonthIncome, currentMonthExpense, remainingBudget,
+          filteredTransactions, loadCloudData, switchTab,
+          addTransaction, openEditModal, saveEditingItem, deleteEditingItem,
+          getCategorySpent, getBudgetPercent, getBudgetColor, updateBudget,
+          addCategory, removeCategory, weeklyShoppingCost, monthlyShoppingCost,
+          addShoppingItem, openEditShopItem, saveEditingShopItem, deleteShoppingItem, saveCloudData
         };
       }
     }).mount('#app');
   </script>
 </body>
-  <!-- ================= 採購清單獨立功能模組 ================= -->
-<div id="shopping-fab-container">
-  <!-- 手機右下角浮動按鈕 -->
-  <button id="openShoppingBtn" onclick="openShoppingModal()" style="position:fixed; bottom:85px; right:18px; z-index:9999; background:#2563eb; color:white; border-radius:50px; padding:10px 16px; font-weight:bold; box-shadow:0 4px 12px rgba(0,0,0,0.25); display:flex; align-items:center; gap:6px; border:none; cursor:pointer;">
-    🛒 採購清單
-  </button>
-
-  <!-- 彈跳視窗視窗本體 -->
-  <div id="shoppingModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center; padding:16px;">
-    <div style="background:white; width:100%; max-width:420px; max-height:85vh; border-radius:16px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,0.2); font-family:sans-serif;">
-      
-      <!-- 頂部標題與關閉按鈕 -->
-      <div style="padding:14px 16px; background:#f8fafc; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-weight:bold; font-size:16px; color:#1e293b;">🛒 採購清單與支出試算</span>
-        <button onclick="closeShoppingModal()" style="border:none; background:transparent; font-size:20px; cursor:pointer; color:#64748b;">✕</button>
-      </div>
-
-      <!-- 每週 / 每月金額統計看板 -->
-      <div style="padding:12px 16px; background:#eff6ff; display:grid; grid-template-columns:1fr 1fr; gap:10px; border-bottom:1px solid #dbeafe;">
-        <div style="background:white; padding:10px; border-radius:8px; text-align:center; border:1px solid #bfdbfe;">
-          <div style="font-size:11px; color:#2563eb; font-weight:600;">每週預估採購</div>
-          <div id="shopWeeklyTotal" style="font-size:16px; font-weight:bold; color:#1e40af;">NT$ 0</div>
-        </div>
-        <div style="background:white; padding:10px; border-radius:8px; text-align:center; border:1px solid #bfdbfe;">
-          <div style="font-size:11px; color:#4338ca; font-weight:600;">每月預估 (週×4+月)</div>
-          <div id="shopMonthlyTotal" style="font-size:16px; font-weight:bold; color:#3730a3;">NT$ 0</div>
-        </div>
-      </div>
-
-      <!-- 新增品項輸入區 -->
-      <div style="padding:12px 16px; border-bottom:1px solid #e2e8f0; display:flex; gap:6px; flex-wrap:wrap; background:#ffffff;">
-        <input id="shopInputName" placeholder="品項名稱 (例: 鮮奶)" style="flex:2; min-width:110px; padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; outline:none;">
-        <select id="shopInputCycle" style="flex:1; min-width:70px; padding:7px 6px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; background:white;">
-          <option value="weekly">每週</option>
-          <option value="monthly">每月</option>
-        </select>
-        <input id="shopInputPrice" type="number" placeholder="金額" style="width:65px; padding:7px 8px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; outline:none;">
-        <button onclick="addShoppingItem()" style="padding:7px 14px; background:#10b981; color:white; border:none; border-radius:8px; font-size:13px; font-weight:bold; cursor:pointer;">新增</button>
-      </div>
-
-      <!-- 待採購項目清單 (可上下滾動) -->
-      <div id="shopListContainer" style="padding:10px 16px; overflow-y:auto; flex:1; max-height:42vh;">
-      </div>
-
-    </div>
-  </div>
-</div>
-
-<script>
-  let shopItems = JSON.parse(localStorage.getItem('my_shopping_items')) || [
-    { id: 1, name: "鮮奶 / 豆漿", cycle: "weekly", price: 180, done: false },
-    { id: 2, name: "雞胸肉 / 雞蛋", cycle: "weekly", price: 350, done: false },
-    { id: 3, name: "衛生紙 / 洗潔精", cycle: "monthly", price: 500, done: false }
-  ];
-
-  function saveAndRenderShop() {
-    localStorage.setItem('my_shopping_items', JSON.stringify(shopItems));
-    const listEl = document.getElementById('shopListContainer');
-    listEl.innerHTML = '';
-
-    let weeklySum = 0;
-    let monthlySum = 0;
-
-    shopItems.forEach((item, idx) => {
-      const price = Number(item.price) || 0;
-      if (item.cycle === 'weekly') weeklySum += price;
-      else monthlySum += price;
-
-      const row = document.createElement('div');
-      row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f1f5f9;";
-      row.innerHTML = `
-        <div style="display:flex; align-items:center; gap:8px; flex:1; overflow:hidden;">
-          <input type="checkbox" ${item.done ? 'checked' : ''} onchange="toggleShopItem(${idx})" style="width:17px; height:17px; cursor:pointer;">
-          <span style="font-size:14px; ${item.done ? 'text-decoration:line-through; color:#94a3b8;' : 'color:#1e293b;'} text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${item.name}</span>
-          <span style="font-size:11px; padding:2px 6px; border-radius:4px; background:${item.cycle === 'weekly' ? '#dbeafe; color:#1d4ed8;' : '#ede9fe; color:#6d28d9;'}">${item.cycle === 'weekly' ? '每週' : '每月'}</span>
-        </div>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="font-size:13px; font-weight:600; color:#334155;">NT$ ${price.toLocaleString()}</span>
-          <button onclick="deleteShopItem(${idx})" style="border:none; background:transparent; color:#ef4444; font-size:15px; cursor:pointer; padding:0 4px;">✕</button>
-        </div>
-      `;
-      listEl.appendChild(row);
-    });
-
-    document.getElementById('shopWeeklyTotal').innerText = `NT$ ${weeklySum.toLocaleString()}`;
-    document.getElementById('shopMonthlyTotal').innerText = `NT$ ${(weeklySum * 4 + monthlySum).toLocaleString()}`;
-  }
-
-  function openShoppingModal() {
-    document.getElementById('shoppingModal').style.display = 'flex';
-    saveAndRenderShop();
-  }
-
-  function closeShoppingModal() {
-    document.getElementById('shoppingModal').style.display = 'none';
-  }
-
-  function addShoppingItem() {
-    const nameInput = document.getElementById('shopInputName');
-    const cycleInput = document.getElementById('shopInputCycle');
-    const priceInput = document.getElementById('shopInputPrice');
-
-    const name = nameInput.value.trim();
-    const price = Number(priceInput.value) || 0;
-    if (!name) return alert('請輸入品項名稱');
-
-    shopItems.push({ id: Date.now(), name, cycle: cycleInput.value, price, done: false });
-    nameInput.value = '';
-    priceInput.value = '';
-    saveAndRenderShop();
-  }
-
-  function toggleShopItem(index) {
-    shopItems[index].done = !shopItems[index].done;
-    saveAndRenderShop();
-  }
-
-  function deleteShopItem(index) {
-    shopItems.splice(index, 1);
-    saveAndRenderShop();
-  }
-</script>
-<!-- ========================================================= -->
 </html>
