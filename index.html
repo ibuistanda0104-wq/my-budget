@@ -70,7 +70,7 @@
       <!-- 主要內容區 -->
       <main class="p-4 flex-1">
 
-        <!-- 分頁 1：收支記帳（含自選日期、語音輸入、外幣與旅遊模式） -->
+        <!-- 分頁 1：收支記帳 -->
         <div v-show="currentTab === 'records'" class="space-y-4">
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
 
@@ -84,14 +84,17 @@
               </div>
             </div>
 
-            <!-- 日期自選與收支類型 -->
+            <!-- 日期自選（含一鍵設為今天按鈕）與收支類型 -->
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-[10px] text-slate-400 mb-0.5">記帳日期</label>
+                <div class="flex justify-between items-center mb-0.5 px-0.5">
+                  <label class="text-[10px] text-slate-400">記帳日期</label>
+                  <button @click="resetToToday" type="button" class="text-[10px] text-blue-600 font-bold hover:underline">設為今天</button>
+                </div>
                 <input v-model="form.date" type="date" class="w-full p-2 border rounded-xl text-xs bg-slate-50 font-medium text-slate-700 outline-none">
               </div>
               <div>
-                <label class="block text-[10px] text-slate-400 mb-0.5">類型</label>
+                <label class="block text-[10px] text-slate-400 mb-0.5 px-0.5">類型</label>
                 <select v-model="form.type" class="w-full p-2 border rounded-xl text-xs bg-slate-50 font-bold" :class="form.type === '收入' ? 'text-emerald-600' : 'text-slate-800'">
                   <option value="支出">支出</option>
                   <option value="收入">收入</option>
@@ -212,10 +215,8 @@
           </div>
         </div>
 
-        <!-- 分頁 3：🤝 AA分帳與代墊結算（夫妻版獨立分頁） -->
+        <!-- 分頁 3：🤝 AA分帳與代墊結算 -->
         <div v-show="currentTab === 'splits'" class="space-y-4">
-
-          <!-- 成員管理卡片 -->
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
             <div class="text-xs font-bold text-slate-800 mb-2 flex items-center justify-between">
               <span>👥 旅伴與分帳成員 ({{ splitMembers.length }}人)</span>
@@ -238,7 +239,6 @@
             </div>
           </div>
 
-          <!-- 新增代墊款項卡片 -->
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
             <div class="text-xs font-bold text-slate-800">➕ 記錄一筆代墊款項</div>
 
@@ -279,7 +279,6 @@
             </button>
           </div>
 
-          <!-- 智慧結算清單看板 -->
           <div class="bg-indigo-600 text-white p-4 rounded-2xl shadow-md space-y-3">
             <div class="flex justify-between items-center">
               <div class="text-xs font-bold flex items-center gap-1.5">
@@ -306,7 +305,6 @@
             </div>
           </div>
 
-          <!-- 分帳記錄清單 -->
           <div>
             <div class="flex justify-between items-center mb-2 px-1">
               <div class="text-xs font-bold text-slate-600">代墊項目明細 ({{ splitRecords.length }} 筆)</div>
@@ -353,7 +351,6 @@
               </div>
             </div>
           </div>
-
         </div>
 
         <!-- 分頁 4：圖表分析 -->
@@ -431,7 +428,6 @@
           </div>
           <div class="p-3 border-b flex gap-1.5 bg-white">
             <input v-model="newShopItem.name" placeholder="品名" class="flex-2 w-full p-2 text-xs border rounded-lg outline-none bg-slate-50">
-            <!-- 採購週期選單：新增「其他」 -->
             <select v-model="newShopItem.cycle" class="p-2 text-xs border rounded-lg bg-slate-50">
               <option value="weekly">每週</option>
               <option value="monthly">每月</option>
@@ -441,7 +437,6 @@
             <button @click="addShoppingItem" class="bg-emerald-600 text-white text-xs px-3 rounded-lg font-bold">新增</button>
           </div>
 
-          <!-- 清單項目區 -->
           <div class="p-3 overflow-y-auto flex-1 divide-y divide-slate-100">
             <div v-if="shoppingList.length === 0" class="p-8 text-center text-xs text-slate-400">
               目前清單是空的，歡迎新增採購品項！
@@ -514,7 +509,7 @@
         </div>
       </div>
 
-      <!-- 記帳明細修改彈窗（含日期修改） -->
+      <!-- 記帳明細修改彈窗 -->
       <div v-if="editingItem" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-3 shadow-2xl">
           <div class="text-sm font-bold text-slate-800">修改記錄</div>
@@ -566,6 +561,15 @@
     const FIREBASE_URL = "https://my-budget-sync-d358e-default-rtdb.firebaseio.com/data.json?auth=BqfQQwEgoZdSWmjtiGZ7RP7U69vgGrQRCmBjHY64";
     const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
+    // 取得臺灣本地時間的 YYYY-MM-DD 格式（避免 UTC 時差誤差）
+    const getLocalTodayDate = () => {
+      const d = new Date();
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
     createApp({
       setup() {
         const currentTab = ref('records');
@@ -574,7 +578,7 @@
         const categoryBudgets = ref({ "餐飲飲食": 10000, "日常採買": 5000, "水電瓦斯": 3000, "交通保養": 3000, "旅遊玩耍": 4000 });
         const shoppingList = ref([]);
 
-        // AA 分帳模組（初始無預設資料）
+        // AA 分帳模組
         const splitMembers = ref([]);
         const splitRecords = ref([]);
         const newMemberName = ref('');
@@ -598,7 +602,7 @@
         };
 
         const form = ref({
-          date: new Date().toISOString().split('T')[0], // 預設今天，可自由修改
+          date: getLocalTodayDate(), // 預設使用本地今天日期
           type: '支出',
           category: '餐飲飲食',
           currency: 'TWD',
@@ -610,9 +614,30 @@
           note: ''
         });
 
+        // 記錄最後一次同步的日期標記，用於換日比對
+        let lastKnownDate = getLocalTodayDate();
+
+        // 換日自動刷新函式
+        const checkAndRefreshDay = () => {
+          const today = getLocalTodayDate();
+          if (today !== lastKnownDate) {
+            lastKnownDate = today;
+            form.value.date = today;
+            // 同步將頂部月份切換至最新月份
+            const currentMonthStr = `${new Date().getFullYear()}年${String(new Date().getMonth() + 1).padStart(2, '0')}月`;
+            if (!monthList.value.includes(selectedMonth.value)) {
+              selectedMonth.value = currentMonthStr;
+            }
+          }
+        };
+
+        const resetToToday = () => {
+          form.value.date = getLocalTodayDate();
+        };
+
         const newShopItem = ref({ name: '', cycle: 'weekly', price: null });
 
-        const selectedMonth = ref(new Date().toISOString().slice(0, 7).replace('-', '年') + '月');
+        const selectedMonth = ref(new Date().getFullYear() + '年' + String(new Date().getMonth() + 1).padStart(2, '0') + '月');
         const monthList = computed(() => {
           const list = [];
           const now = new Date();
@@ -625,7 +650,6 @@
 
         let chartInstance = null;
 
-        // 雲端載入
         const loadCloudData = async () => {
           try {
             const res = await fetch(FIREBASE_URL);
@@ -644,7 +668,6 @@
           }
         };
 
-        // 雲端儲存
         const saveCloudData = async () => {
           try {
             await fetch(FIREBASE_URL, {
@@ -667,6 +690,17 @@
 
         onMounted(() => {
           loadCloudData();
+
+          // 手機解鎖或切回此 App 畫面時，自動偵測日期是否已經過了一天
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+              checkAndRefreshDay();
+            }
+          });
+          window.addEventListener('focus', checkAndRefreshDay);
+
+          // 背景每 15 分鐘定時確認換日
+          setInterval(checkAndRefreshDay, 15 * 60 * 1000);
         });
 
         // AA 成員管理
@@ -745,7 +779,7 @@
           }
         };
 
-        // 智慧最小化轉帳結算引擎 (Greedy Net Balance)
+        // 智慧最小化轉帳結算引擎
         const settlementDirectives = computed(() => {
           const balances = {};
           splitMembers.value.forEach(m => balances[m] = 0);
@@ -901,9 +935,12 @@
 
         const addTransaction = () => {
           if (!form.value.amount || form.value.amount <= 0) return alert('請填寫金額');
+          
+          const recordDate = form.value.date || getLocalTodayDate();
+          
           transactions.value.unshift({
             id: Date.now().toString(),
-            date: form.value.date || new Date().toISOString().split('T')[0],
+            date: recordDate,
             type: form.value.type,
             category: form.value.category,
             currency: form.value.currency,
@@ -915,6 +952,14 @@
             note: form.value.note
           });
 
+          // 如果記帳的月份剛好與目前頂部選中的月份不同，自動跳轉到該月份顯示
+          const recMonthStr = `${recordDate.slice(0, 4)}年${recordDate.slice(5, 7)}月`;
+          if (monthList.value.includes(recMonthStr) && selectedMonth.value !== recMonthStr) {
+            selectedMonth.value = recMonthStr;
+          }
+
+          // 儲存完成後，日期自動回歸為當前最新日期
+          form.value.date = getLocalTodayDate();
           form.value.amount = null;
           form.value.foreignAmount = null;
           form.value.note = '';
@@ -1031,7 +1076,7 @@
           currentTab, transactions, categories, categoryBudgets, shoppingList,
           showShoppingModal, editingItem, editingShopItem, newCategoryName, form, newShopItem,
           selectedMonth, monthList, currentMonthIncome, currentMonthExpense, remainingBudget,
-          filteredTransactions, loadCloudData, switchTab,
+          filteredTransactions, loadCloudData, switchTab, resetToToday,
           addTransaction, openEditModal, saveEditingItem, deleteEditingItem,
           getCategorySpent, getBudgetPercent, getBudgetColor, updateBudget,
           addCategory, removeCategory, weeklyShoppingCost, monthlyShoppingCost,
