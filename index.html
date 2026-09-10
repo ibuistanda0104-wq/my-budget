@@ -70,7 +70,7 @@
       <!-- 主要內容區 -->
       <main class="p-4 flex-1">
 
-        <!-- 分頁 1：收支記帳（含語音輸入、外幣與旅遊模式） -->
+        <!-- 分頁 1：收支記帳（含自選日期、語音輸入、外幣與旅遊模式） -->
         <div v-show="currentTab === 'records'" class="space-y-4">
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
 
@@ -84,12 +84,23 @@
               </div>
             </div>
 
-            <!-- 收支類型、分類、幣別 -->
-            <div class="grid grid-cols-3 gap-2">
-              <select v-model="form.type" class="p-2 border rounded-xl text-xs bg-slate-50 font-bold" :class="form.type === '收入' ? 'text-emerald-600' : 'text-slate-800'">
-                <option value="支出">支出</option>
-                <option value="收入">收入</option>
-              </select>
+            <!-- 日期自選與收支類型 -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[10px] text-slate-400 mb-0.5">記帳日期</label>
+                <input v-model="form.date" type="date" class="w-full p-2 border rounded-xl text-xs bg-slate-50 font-medium text-slate-700 outline-none">
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-400 mb-0.5">類型</label>
+                <select v-model="form.type" class="w-full p-2 border rounded-xl text-xs bg-slate-50 font-bold" :class="form.type === '收入' ? 'text-emerald-600' : 'text-slate-800'">
+                  <option value="支出">支出</option>
+                  <option value="收入">收入</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- 分類與幣別 -->
+            <div class="grid grid-cols-2 gap-2">
               <select v-model="form.category" class="p-2 border rounded-xl text-xs bg-slate-50 font-medium">
                 <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
               </select>
@@ -439,7 +450,6 @@
               <label class="flex items-center gap-2 overflow-hidden flex-1 cursor-pointer">
                 <input type="checkbox" v-model="item.done" @change="saveCloudData" class="w-4 h-4 rounded text-blue-600">
                 <span :class="{'line-through text-slate-300': item.done}" class="text-xs text-slate-700 truncate">{{ item.name }}</span>
-                <!-- 標籤區：支援每週、每月與其他 -->
                 <span class="text-[10px] px-1.5 py-0.2 rounded" :class="item.cycle === 'weekly' ? 'bg-blue-50 text-blue-600' : (item.cycle === 'monthly' ? 'bg-purple-50 text-purple-600' : 'bg-amber-50 text-amber-700')">
                   {{ item.cycle === 'weekly' ? '每週' : (item.cycle === 'monthly' ? '每月' : '其他') }}
                 </span>
@@ -460,7 +470,6 @@
           <div class="text-sm font-bold text-slate-800">✏️ 修改採購品項</div>
           <input v-model="editingShopItem.name" placeholder="品名" class="w-full p-2 border rounded-xl text-xs bg-slate-50 outline-none">
           <div class="grid grid-cols-2 gap-2">
-            <!-- 編輯彈窗選單：新增「其他」 -->
             <select v-model="editingShopItem.cycle" class="p-2 border rounded-xl text-xs bg-slate-50">
               <option value="weekly">每週</option>
               <option value="monthly">每月</option>
@@ -505,10 +514,16 @@
         </div>
       </div>
 
-      <!-- 記帳明細修改彈窗 -->
+      <!-- 記帳明細修改彈窗（含日期修改） -->
       <div v-if="editingItem" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-3 shadow-2xl">
           <div class="text-sm font-bold text-slate-800">修改記錄</div>
+          
+          <div>
+            <label class="text-[10px] text-slate-400">記帳日期</label>
+            <input v-model="editingItem.date" type="date" class="w-full p-2 border rounded-xl text-xs bg-slate-50 outline-none font-medium">
+          </div>
+
           <div class="grid grid-cols-2 gap-2">
             <select v-model="editingItem.type" class="p-2 border rounded-xl text-xs bg-slate-50">
               <option value="支出">支出</option>
@@ -583,6 +598,7 @@
         };
 
         const form = ref({
+          date: new Date().toISOString().split('T')[0], // 預設今天，可自由修改
           type: '支出',
           category: '餐飲飲食',
           currency: 'TWD',
@@ -887,7 +903,7 @@
           if (!form.value.amount || form.value.amount <= 0) return alert('請填寫金額');
           transactions.value.unshift({
             id: Date.now().toString(),
-            date: new Date().toISOString().split('T')[0],
+            date: form.value.date || new Date().toISOString().split('T')[0],
             type: form.value.type,
             category: form.value.category,
             currency: form.value.currency,
@@ -898,6 +914,7 @@
             amount: Number(form.value.amount),
             note: form.value.note
           });
+
           form.value.amount = null;
           form.value.foreignAmount = null;
           form.value.note = '';
@@ -1020,7 +1037,6 @@
           addCategory, removeCategory, weeklyShoppingCost, monthlyShoppingCost,
           addShoppingItem, openEditShopItem, saveEditingShopItem, deleteShoppingItem, saveCloudData,
           onCurrencyChange, calcTwdAmount, isListening, voiceNotice, startVoiceInput,
-          // AA 分帳導出
           splitMembers, splitRecords, newMemberName, newSplit, editingSplit,
           addSplitMember, removeSplitMember, selectAllMembers, addSplitRecord,
           openEditSplitModal, saveEditingSplit, deleteSplitRecord, toggleSettled, clearAllSplits,
