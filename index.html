@@ -420,15 +420,17 @@
           </div>
           <div class="p-3 border-b flex gap-1.5 bg-white">
             <input v-model="newShopItem.name" placeholder="品名" class="flex-2 w-full p-2 text-xs border rounded-lg outline-none bg-slate-50">
+            <!-- 採購週期選單：新增「其他」 -->
             <select v-model="newShopItem.cycle" class="p-2 text-xs border rounded-lg bg-slate-50">
               <option value="weekly">每週</option>
               <option value="monthly">每月</option>
+              <option value="other">其他</option>
             </select>
             <input v-model.number="newShopItem.price" type="number" placeholder="金額" class="w-16 p-2 text-xs border rounded-lg outline-none bg-slate-50">
             <button @click="addShoppingItem" class="bg-emerald-600 text-white text-xs px-3 rounded-lg font-bold">新增</button>
           </div>
 
-          <!-- 清單項目區（無範例） -->
+          <!-- 清單項目區 -->
           <div class="p-3 overflow-y-auto flex-1 divide-y divide-slate-100">
             <div v-if="shoppingList.length === 0" class="p-8 text-center text-xs text-slate-400">
               目前清單是空的，歡迎新增採購品項！
@@ -437,8 +439,9 @@
               <label class="flex items-center gap-2 overflow-hidden flex-1 cursor-pointer">
                 <input type="checkbox" v-model="item.done" @change="saveCloudData" class="w-4 h-4 rounded text-blue-600">
                 <span :class="{'line-through text-slate-300': item.done}" class="text-xs text-slate-700 truncate">{{ item.name }}</span>
-                <span class="text-[10px] px-1.5 py-0.2 rounded" :class="item.cycle === 'weekly' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'">
-                  {{ item.cycle === 'weekly' ? '每週' : '每月' }}
+                <!-- 標籤區：支援每週、每月與其他 -->
+                <span class="text-[10px] px-1.5 py-0.2 rounded" :class="item.cycle === 'weekly' ? 'bg-blue-50 text-blue-600' : (item.cycle === 'monthly' ? 'bg-purple-50 text-purple-600' : 'bg-amber-50 text-amber-700')">
+                  {{ item.cycle === 'weekly' ? '每週' : (item.cycle === 'monthly' ? '每月' : '其他') }}
                 </span>
               </label>
               <div class="flex items-center gap-2">
@@ -457,9 +460,11 @@
           <div class="text-sm font-bold text-slate-800">✏️ 修改採購品項</div>
           <input v-model="editingShopItem.name" placeholder="品名" class="w-full p-2 border rounded-xl text-xs bg-slate-50 outline-none">
           <div class="grid grid-cols-2 gap-2">
+            <!-- 編輯彈窗選單：新增「其他」 -->
             <select v-model="editingShopItem.cycle" class="p-2 border rounded-xl text-xs bg-slate-50">
               <option value="weekly">每週</option>
               <option value="monthly">每月</option>
+              <option value="other">其他</option>
             </select>
             <input v-model.number="editingShopItem.price" type="number" placeholder="金額" class="p-2 border rounded-xl text-xs bg-slate-50 outline-none">
           </div>
