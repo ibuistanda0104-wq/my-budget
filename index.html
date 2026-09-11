@@ -561,7 +561,7 @@
     const FIREBASE_URL = "https://my-budget-sync-d358e-default-rtdb.firebaseio.com/data.json?auth=BqfQQwEgoZdSWmjtiGZ7RP7U69vgGrQRCmBjHY64";
     const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
-    // 取得臺灣本地時間的 YYYY-MM-DD 格式（避免 UTC 時差誤差）
+    // 取得臺灣本地時間的 YYYY-MM-DD 格式
     const getLocalTodayDate = () => {
       const d = new Date();
       const year = d.getFullYear();
@@ -574,9 +574,12 @@
       setup() {
         const currentTab = ref('records');
         const transactions = ref([]);
-        const categories = ref(["餐飲飲食", "日常採買", "水電瓦斯", "交通保養", "旅遊玩耍", "健康醫療", "薪資收入", "其他"]);
+        const categories = ref(["餐飲飲食", "日常採買", "水電瓦斯", "交通保養", "旅遊玩耍", "健康醫療", "十一奉獻", "薪資收入", "其他"]);
         const categoryBudgets = ref({ "餐飲飲食": 10000, "日常採買": 5000, "水電瓦斯": 3000, "交通保養": 3000, "旅遊玩耍": 4000 });
         const shoppingList = ref([]);
+
+        // 🛡️ 雲端載入完成狀態標記
+        const isDataLoaded = ref(false);
 
         // AA 分帳模組
         const splitMembers = ref([]);
@@ -602,7 +605,7 @@
         };
 
         const form = ref({
-          date: getLocalTodayDate(), // 預設使用本地今天日期
+          date: getLocalTodayDate(),
           type: '支出',
           category: '餐飲飲食',
           currency: 'TWD',
@@ -614,16 +617,13 @@
           note: ''
         });
 
-        // 記錄最後一次同步的日期標記，用於換日比對
         let lastKnownDate = getLocalTodayDate();
 
-        // 換日自動刷新函式
         const checkAndRefreshDay = () => {
           const today = getLocalTodayDate();
           if (today !== lastKnownDate) {
             lastKnownDate = today;
             form.value.date = today;
-            // 同步將頂部月份切換至最新月份
             const currentMonthStr = `${new Date().getFullYear()}年${String(new Date().getMonth() + 1).padStart(2, '0')}月`;
             if (!monthList.value.includes(selectedMonth.value)) {
               selectedMonth.value = currentMonthStr;
@@ -661,6 +661,7 @@
               shoppingList.value = val.shoppingList || [];
               splitMembers.value = val.splitMembers || [];
               splitRecords.value = val.splitRecords || [];
+              isDataLoaded.value = true;
               renderChart();
             }
           } catch (e) {
@@ -668,7 +669,20 @@
           }
         };
 
+        // 雲端儲存（含防呆安全鎖）
         const saveCloudData = async () => {
+          // 🛡️ 安全鎖 1：若尚未成功從雲端抓取過資料，嚴禁覆蓋（防止斷網時空白覆蓋）
+          if (!isDataLoaded.value) {
+            console.warn('尚未完成雲端資料初始化載入，已攔截儲存請求以保護資料庫');
+            return;
+          }
+
+          // 🛡️ 安全鎖 2：本地記帳清單完全為空時，禁止覆蓋雲端帳本
+          if (!transactions.value || transactions.value.length === 0) {
+            console.warn('本地帳目清單為空，已攔截全量覆蓋以防誤刪');
+            return;
+          }
+
           try {
             await fetch(FIREBASE_URL, {
               method: 'PUT',
@@ -691,19 +705,15 @@
         onMounted(() => {
           loadCloudData();
 
-          // 手機解鎖或切回此 App 畫面時，自動偵測日期是否已經過了一天
           document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
               checkAndRefreshDay();
             }
           });
           window.addEventListener('focus', checkAndRefreshDay);
-
-          // 背景每 15 分鐘定時確認換日
           setInterval(checkAndRefreshDay, 15 * 60 * 1000);
         });
 
-        // AA 成員管理
         const addSplitMember = () => {
           const name = newMemberName.value.trim();
           if (name && !splitMembers.value.includes(name)) {
@@ -724,7 +734,6 @@
           newSplit.value.participants = [...splitMembers.value];
         };
 
-        // AA 款項 CRUD
         const addSplitRecord = () => {
           if (!newSplit.value.title) return alert('請輸入項目名稱');
           if (!newSplit.value.amount || newSplit.value.amount <= 0) return alert('請輸入正確金額');
@@ -779,7 +788,6 @@
           }
         };
 
-        // 智慧最小化轉帳結算引擎
         const settlementDirectives = computed(() => {
           const balances = {};
           splitMembers.value.forEach(m => balances[m] = 0);
@@ -832,7 +840,6 @@
           return directives;
         });
 
-        // 複製到 LINE
         const copySettlementText = () => {
           if (settlementDirectives.value.length === 0) {
             return alert('目前沒有需要結算的款項！');
@@ -850,7 +857,6 @@
           });
         };
 
-        // 語音輸入模組
         const startVoiceInput = () => {
           const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
           if (!SpeechRecognition) return alert('瀏覽器不支援語音辨識，請使用 Chrome 或 Safari。');
@@ -952,13 +958,11 @@
             note: form.value.note
           });
 
-          // 如果記帳的月份剛好與目前頂部選中的月份不同，自動跳轉到該月份顯示
           const recMonthStr = `${recordDate.slice(0, 4)}年${recordDate.slice(5, 7)}月`;
           if (monthList.value.includes(recMonthStr) && selectedMonth.value !== recMonthStr) {
             selectedMonth.value = recMonthStr;
           }
 
-          // 儲存完成後，日期自動回歸為當前最新日期
           form.value.date = getLocalTodayDate();
           form.value.amount = null;
           form.value.foreignAmount = null;
