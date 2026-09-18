@@ -611,7 +611,6 @@
     const FIREBASE_URL = "https://my-budget-sync-d358e-default-rtdb.firebaseio.com/data.json?auth=BqfQQwEgoZdSWmjtiGZ7RP7U69vgGrQRCmBjHY64";
     const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
-    // 取得臺灣本地時間的 YYYY-MM-DD 格式
     const getLocalTodayDate = () => {
       const d = new Date();
       const year = d.getFullYear();
@@ -628,13 +627,11 @@
         const categoryBudgets = ref({ "餐飲飲食": 10000, "日常採買": 5000, "水電瓦斯": 3000, "交通保養": 3000, "旅遊玩耍": 4000 });
         const shoppingList = ref([]);
 
-        // 🛡️ 雲端載入完成狀態標記
         const isDataLoaded = ref(false);
 
-        // AA 分帳與公積金模組
         const splitMembers = ref([]);
         const splitRecords = ref([]);
-        const poolFund = ref(0); // 旅遊公積金總儲值金
+        const poolFund = ref(0);
         const newMemberName = ref('');
         const newSplit = ref({ title: '', amount: null, payer: '', participants: [] });
         const editingSplit = ref(null);
@@ -722,7 +719,6 @@
           }
         };
 
-        // 雲端儲存（含防呆安全鎖）
         const saveCloudData = async () => {
           if (!isDataLoaded.value) {
             console.warn('尚未完成雲端資料初始化載入，已攔截儲存請求以保護資料庫');
@@ -766,7 +762,6 @@
           setInterval(checkAndRefreshDay, 15 * 60 * 1000);
         });
 
-        // ====== 💰 公積金儲值與試算邏輯 ======
         const promptDepositPool = () => {
           const mode = confirm("點擊【確定】依「每人金額」儲值（例：每人 1000）\n點擊【取消】直接輸入「自訂總金額」");
           if (mode) {
@@ -787,25 +782,21 @@
           }
         };
 
-        // 統計由公積金扣款的累計金額
         const poolTotalExpense = computed(() => {
           return splitRecords.value
             .filter(r => !r.settled && r.payer && r.payer.includes('公積金'))
             .reduce((s, r) => s + (Number(r.amount) || 0), 0);
         });
 
-        // 公積金剩餘餘額
         const remainingPoolFund = computed(() => {
           return (Number(poolFund.value) || 0) - poolTotalExpense.value;
         });
 
-        // 結束後每人可退還金額
         const poolRefundPerPerson = computed(() => {
           if (!splitMembers.value.length || remainingPoolFund.value <= 0) return 0;
           return Math.floor(remainingPoolFund.value / splitMembers.value.length);
         });
 
-        // ====== AA 分帳操作邏輯 ======
         const addSplitMember = () => {
           const name = newMemberName.value.trim();
           if (name && !splitMembers.value.includes(name)) {
@@ -880,7 +871,6 @@
           }
         };
 
-        // ====== ⚡ 最佳化平整結算演算法（支援公積金與消除尾差） ======
         const settlementDirectives = computed(() => {
           const balances = {};
           splitMembers.value.forEach(m => balances[m] = 0);
@@ -890,12 +880,10 @@
             const count = rec.participants.length;
             if (count === 0 || amount <= 0) return;
 
-            // 【公積金扣款核心】：由公積金買單時，累計公費扣款，不產生個人之間的互轉欠款
             if (rec.payer && rec.payer.includes('公積金')) {
               return;
             }
 
-            // 【消除尾差算法】：每人整數分攤，餘額留在付款人身上吸收，所有人分攤金額一致
             const perPerson = Math.floor(amount / count);
             const remainder = amount - (perPerson * count);
 
@@ -919,7 +907,6 @@
             else if (bal < -1) debtors.push({ person, amount: -bal });
           });
 
-          // 金額由大到小排序，最大化一次抵銷，避免產生多方破碎轉帳
           creditors.sort((a, b) => b.amount - a.amount);
           debtors.sort((a, b) => b.amount - a.amount);
 
@@ -980,7 +967,6 @@
           });
         };
 
-        // 語音輸入邏輯
         const startVoiceInput = () => {
           const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
           if (!SpeechRecognition) return alert('瀏覽器不支援語音辨識，請使用 Chrome 或 Safari。');
