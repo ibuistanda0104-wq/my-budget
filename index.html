@@ -84,7 +84,7 @@
               </div>
             </div>
 
-            <!-- 日期自選（含一鍵設為今天按鈕）與收支類型 -->
+            <!-- 日期自選與收支類型 -->
             <div class="grid grid-cols-2 gap-2">
               <div>
                 <div class="flex justify-between items-center mb-0.5 px-0.5">
@@ -116,7 +116,7 @@
               </select>
             </div>
 
-            <!-- 台幣直接填金額 -->
+            <!-- 台幣金額輸入 -->
             <div v-if="form.currency === 'TWD'" class="grid grid-cols-2 gap-2">
               <input v-model.number="form.amount" type="number" placeholder="金額 (NT$)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50 font-bold">
               <input v-model="form.note" placeholder="備註 (例: 午餐、薪水)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50">
@@ -215,15 +215,48 @@
           </div>
         </div>
 
-        <!-- 分頁 3：🤝 AA分帳與代墊結算 -->
+        <!-- 分頁 3：🤝 AA分帳與代墊結算 (含公積金) -->
         <div v-show="currentTab === 'splits'" class="space-y-4">
+
+          <!-- 💰 旅遊公積金（公費）管理看板 -->
+          <div class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-4 rounded-2xl shadow-md space-y-3">
+            <div class="flex justify-between items-center">
+              <div class="text-xs font-bold flex items-center gap-1.5">
+                <span>💰</span> 旅遊公積金池（公費扣款）
+              </div>
+              <button @click="promptDepositPool" class="text-[11px] bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg transition font-semibold">
+                ＋ 儲值 / 設定公費
+              </button>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <div class="bg-white/15 backdrop-blur-sm p-2.5 rounded-xl">
+                <div class="text-[10px] text-emerald-100">公費總存入</div>
+                <div class="text-sm font-bold mt-0.5">NT$ {{ (poolFund || 0).toLocaleString() }}</div>
+              </div>
+              <div class="bg-white/15 backdrop-blur-sm p-2.5 rounded-xl">
+                <div class="text-[10px] text-emerald-100">公積金剩餘餘額</div>
+                <div class="text-base font-extrabold mt-0.5" :class="remainingPoolFund < 0 ? 'text-rose-200' : 'text-amber-200'">
+                  NT$ {{ remainingPoolFund.toLocaleString() }}
+                </div>
+              </div>
+            </div>
+
+            <div class="flex justify-between items-center text-[11px] text-emerald-100 bg-black/10 px-3 py-1.5 rounded-xl">
+              <span>累計公費已扣：NT$ {{ poolTotalExpense.toLocaleString() }}</span>
+              <span v-if="remainingPoolFund > 0 && splitMembers.length > 0">每人可退：NT$ {{ poolRefundPerPerson.toLocaleString() }}</span>
+              <span v-else-if="remainingPoolFund < 0" class="text-rose-200 font-bold">公費不足超支</span>
+            </div>
+          </div>
+
+          <!-- 旅伴成員管理 -->
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
             <div class="text-xs font-bold text-slate-800 mb-2 flex items-center justify-between">
               <span>👥 旅伴與分帳成員 ({{ splitMembers.length }}人)</span>
               <span class="text-[10px] text-slate-400">分帳前請先加入成員</span>
             </div>
             <div class="flex gap-2 mb-2.5">
-              <input v-model="newMemberName" placeholder="輸入成員稱謂 (例: 我、老公、小明)" class="flex-1 p-2 text-xs border rounded-xl bg-slate-50 outline-none">
+              <input v-model="newMemberName" placeholder="輸入成員稱謂 (例: 姊姊、哥哥)" class="flex-1 p-2 text-xs border rounded-xl bg-slate-50 outline-none">
               <button @click="addSplitMember" class="px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition">
                 + 加入
               </button>
@@ -239,11 +272,12 @@
             </div>
           </div>
 
+          <!-- 記錄一筆代墊款項 -->
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
             <div class="text-xs font-bold text-slate-800">➕ 記錄一筆代墊款項</div>
 
             <div class="grid grid-cols-2 gap-2">
-              <input v-model="newSplit.title" placeholder="款項項目 (例: 晚餐、機票)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50">
+              <input v-model="newSplit.title" placeholder="款項項目 (例: 羊肉爐、中餐)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50">
               <input v-model.number="newSplit.amount" type="number" placeholder="總金額 (NT$)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50 font-bold">
             </div>
 
@@ -252,6 +286,7 @@
                 <label class="block text-[10px] text-slate-400 mb-1">誰先代付？</label>
                 <select v-model="newSplit.payer" class="w-full p-2 border rounded-xl text-xs bg-slate-50 font-semibold text-slate-700">
                   <option value="" disabled>請選擇付款人</option>
+                  <option value="💰 公積金" class="text-emerald-700 font-bold">💰 公積金（免個人互轉）</option>
                   <option v-for="m in splitMembers" :key="m" :value="m">{{ m }}</option>
                 </select>
               </div>
@@ -279,6 +314,7 @@
             </button>
           </div>
 
+          <!-- 最佳化結算方案 (免多方拆帳) -->
           <div class="bg-indigo-600 text-white p-4 rounded-2xl shadow-md space-y-3">
             <div class="flex justify-between items-center">
               <div class="text-xs font-bold flex items-center gap-1.5">
@@ -287,6 +323,12 @@
               <button @click="copySettlementText" class="text-[11px] bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg transition font-semibold">
                 📋 複製到 LINE
               </button>
+            </div>
+
+            <!-- 公積金累計標示 -->
+            <div v-if="poolTotalExpense > 0" class="bg-emerald-500/25 border border-emerald-300/30 p-2.5 rounded-xl text-xs flex justify-between items-center">
+              <span>💰 公積金累計支出（免轉帳）：</span>
+              <span class="font-bold text-amber-200">NT$ {{ poolTotalExpense.toLocaleString() }}</span>
             </div>
 
             <div v-if="settlementDirectives.length === 0" class="text-center py-4 text-xs text-indigo-200">
@@ -305,6 +347,7 @@
             </div>
           </div>
 
+          <!-- 代墊項目明細清單 -->
           <div>
             <div class="flex justify-between items-center mb-2 px-1">
               <div class="text-xs font-bold text-slate-600">代墊項目明細 ({{ splitRecords.length }} 筆)</div>
@@ -323,6 +366,9 @@
                     <span :class="rec.settled ? 'bg-slate-100 text-slate-400' : 'bg-emerald-50 text-emerald-600'" class="text-[10px] px-1.5 py-0.5 rounded font-medium">
                       {{ rec.settled ? '已結清' : '分帳中' }}
                     </span>
+                    <span v-if="rec.payer && rec.payer.includes('公積金')" class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">
+                      公費扣款
+                    </span>
                   </div>
                   <div class="text-xs font-bold text-slate-800">
                     NT$ {{ Number(rec.amount).toLocaleString() }}
@@ -331,9 +377,11 @@
 
                 <div class="text-[11px] text-slate-500 flex flex-wrap justify-between items-center pt-1 border-t border-slate-50">
                   <div>
-                    由 <span class="font-semibold text-indigo-600">{{ rec.payer }}</span> 代墊，
+                    由 <span class="font-semibold text-indigo-600">{{ rec.payer }}</span> 付款，
                     分攤：<span class="text-slate-700 font-medium">{{ rec.participants.join('、') }}</span>
-                    (每人約 ${{ Math.round(rec.amount / rec.participants.length) }})
+                    <span v-if="!rec.payer.includes('公積金')">
+                      (每人約 ${{ Math.floor(rec.amount / rec.participants.length) }})
+                    </span>
                   </div>
                 </div>
 
@@ -351,6 +399,7 @@
               </div>
             </div>
           </div>
+
         </div>
 
         <!-- 分頁 4：圖表分析 -->
@@ -479,7 +528,7 @@
         </div>
       </div>
 
-      <!-- 修改代墊記錄彈窗 -->
+      <!-- 修改代墊記錄彈窗 (支援修改為公積金) -->
       <div v-if="editingSplit" class="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-3 shadow-2xl">
           <div class="text-sm font-bold text-slate-800">✏️ 修改分帳記錄</div>
@@ -490,6 +539,7 @@
           <div>
             <label class="block text-[10px] text-slate-400 mb-1">付款人</label>
             <select v-model="editingSplit.item.payer" class="w-full p-2 border rounded-xl text-xs bg-slate-50">
+              <option value="💰 公積金">💰 公積金（免個人互轉）</option>
               <option v-for="m in splitMembers" :key="m" :value="m">{{ m }}</option>
             </select>
           </div>
@@ -581,9 +631,10 @@
         // 🛡️ 雲端載入完成狀態標記
         const isDataLoaded = ref(false);
 
-        // AA 分帳模組
+        // AA 分帳與公積金模組
         const splitMembers = ref([]);
         const splitRecords = ref([]);
+        const poolFund = ref(0); // 旅遊公積金總儲值金
         const newMemberName = ref('');
         const newSplit = ref({ title: '', amount: null, payer: '', participants: [] });
         const editingSplit = ref(null);
@@ -661,6 +712,8 @@
               shoppingList.value = val.shoppingList || [];
               splitMembers.value = val.splitMembers || [];
               splitRecords.value = val.splitRecords || [];
+              if (val.poolFund !== undefined) poolFund.value = Number(val.poolFund) || 0;
+
               isDataLoaded.value = true;
               renderChart();
             }
@@ -671,13 +724,11 @@
 
         // 雲端儲存（含防呆安全鎖）
         const saveCloudData = async () => {
-          // 🛡️ 安全鎖 1：若尚未成功從雲端抓取過資料，嚴禁覆蓋（防止斷網時空白覆蓋）
           if (!isDataLoaded.value) {
             console.warn('尚未完成雲端資料初始化載入，已攔截儲存請求以保護資料庫');
             return;
           }
 
-          // 🛡️ 安全鎖 2：本地記帳清單完全為空時，禁止覆蓋雲端帳本
           if (!transactions.value || transactions.value.length === 0) {
             console.warn('本地帳目清單為空，已攔截全量覆蓋以防誤刪');
             return;
@@ -693,7 +744,8 @@
                 categoryBudgets: categoryBudgets.value,
                 shoppingList: shoppingList.value,
                 splitMembers: splitMembers.value,
-                splitRecords: splitRecords.value
+                splitRecords: splitRecords.value,
+                poolFund: poolFund.value
               })
             });
             renderChart();
@@ -714,6 +766,46 @@
           setInterval(checkAndRefreshDay, 15 * 60 * 1000);
         });
 
+        // ====== 💰 公積金儲值與試算邏輯 ======
+        const promptDepositPool = () => {
+          const mode = confirm("點擊【確定】依「每人金額」儲值（例：每人 1000）\n點擊【取消】直接輸入「自訂總金額」");
+          if (mode) {
+            const per = prompt(`請輸入每人預繳金額 (目前成員 ${splitMembers.value.length} 人)：`, "1000");
+            if (per && !isNaN(per) && Number(per) > 0) {
+              const total = Number(per) * (splitMembers.value.length || 1);
+              poolFund.value = (Number(poolFund.value) || 0) + total;
+              saveCloudData();
+              alert(`🎉 已成功存入公積金！\n每人 NT$ ${Number(per).toLocaleString()}，共入帳 NT$ ${total.toLocaleString()}`);
+            }
+          } else {
+            const val = prompt("請輸入存入公積金的總金額 (NT$)：", "5000");
+            if (val && !isNaN(val) && Number(val) > 0) {
+              poolFund.value = (Number(poolFund.value) || 0) + Number(val);
+              saveCloudData();
+              alert(`🎉 已成功存入公積金 NT$ ${Number(val).toLocaleString()}！`);
+            }
+          }
+        };
+
+        // 統計由公積金扣款的累計金額
+        const poolTotalExpense = computed(() => {
+          return splitRecords.value
+            .filter(r => !r.settled && r.payer && r.payer.includes('公積金'))
+            .reduce((s, r) => s + (Number(r.amount) || 0), 0);
+        });
+
+        // 公積金剩餘餘額
+        const remainingPoolFund = computed(() => {
+          return (Number(poolFund.value) || 0) - poolTotalExpense.value;
+        });
+
+        // 結束後每人可退還金額
+        const poolRefundPerPerson = computed(() => {
+          if (!splitMembers.value.length || remainingPoolFund.value <= 0) return 0;
+          return Math.floor(remainingPoolFund.value / splitMembers.value.length);
+        });
+
+        // ====== AA 分帳操作邏輯 ======
         const addSplitMember = () => {
           const name = newMemberName.value.trim();
           if (name && !splitMembers.value.includes(name)) {
@@ -788,6 +880,7 @@
           }
         };
 
+        // ====== ⚡ 最佳化平整結算演算法（支援公積金與消除尾差） ======
         const settlementDirectives = computed(() => {
           const balances = {};
           splitMembers.value.forEach(m => balances[m] = 0);
@@ -795,13 +888,25 @@
           splitRecords.value.filter(r => !r.settled).forEach(rec => {
             const amount = Number(rec.amount) || 0;
             const count = rec.participants.length;
-            if (count === 0) return;
-            const splitPerPerson = amount / count;
+            if (count === 0 || amount <= 0) return;
 
-            if (balances[rec.payer] !== undefined) balances[rec.payer] += amount;
+            // 【公積金扣款核心】：由公積金買單時，累計公費扣款，不產生個人之間的互轉欠款
+            if (rec.payer && rec.payer.includes('公積金')) {
+              return;
+            }
+
+            // 【消除尾差算法】：每人整數分攤，餘額留在付款人身上吸收，所有人分攤金額一致
+            const perPerson = Math.floor(amount / count);
+            const remainder = amount - (perPerson * count);
+
+            if (balances[rec.payer] !== undefined) {
+              balances[rec.payer] += (amount - remainder);
+            }
 
             rec.participants.forEach(p => {
-              if (balances[p] !== undefined) balances[p] -= splitPerPerson;
+              if (balances[p] !== undefined) {
+                balances[p] -= perPerson;
+              }
             });
           });
 
@@ -813,6 +918,10 @@
             if (bal > 1) creditors.push({ person, amount: bal });
             else if (bal < -1) debtors.push({ person, amount: -bal });
           });
+
+          // 金額由大到小排序，最大化一次抵銷，避免產生多方破碎轉帳
+          creditors.sort((a, b) => b.amount - a.amount);
+          debtors.sort((a, b) => b.amount - a.amount);
 
           const directives = [];
           let i = 0, j = 0;
@@ -841,13 +950,27 @@
         });
 
         const copySettlementText = () => {
-          if (settlementDirectives.value.length === 0) {
+          if (settlementDirectives.value.length === 0 && poolTotalExpense.value === 0) {
             return alert('目前沒有需要結算的款項！');
           }
           let text = '✈️【旅費結算清單】\n';
-          settlementDirectives.value.forEach(s => {
-            text += `👉 ${s.from} 應轉給 ${s.to}：NT$ ${s.amount.toLocaleString()}\n`;
-          });
+          
+          if (poolTotalExpense.value > 0) {
+            text += `💰【公積金累計支出】NT$ ${poolTotalExpense.value.toLocaleString()}（免個人互轉）\n`;
+            if (remainingPoolFund.value > 0 && splitMembers.value.length > 0) {
+              text += `💵【公積金剩餘餘額】NT$ ${remainingPoolFund.value.toLocaleString()}（每人退回 NT$ ${poolRefundPerPerson.value.toLocaleString()}）\n`;
+            }
+            text += '------------------------------------\n';
+          }
+
+          if (settlementDirectives.value.length === 0) {
+            text += '目前無個人積欠款項，款項皆已結清！\n';
+          } else {
+            settlementDirectives.value.forEach(s => {
+              text += `👉 ${s.from} 應轉給 ${s.to}：NT$ ${s.amount.toLocaleString()}\n`;
+            });
+          }
+
           text += '\n請大家確認後協助轉帳，感謝大家！';
 
           navigator.clipboard.writeText(text).then(() => {
@@ -857,6 +980,7 @@
           });
         };
 
+        // 語音輸入邏輯
         const startVoiceInput = () => {
           const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
           if (!SpeechRecognition) return alert('瀏覽器不支援語音辨識，請使用 Chrome 或 Safari。');
@@ -1086,7 +1210,8 @@
           addCategory, removeCategory, weeklyShoppingCost, monthlyShoppingCost,
           addShoppingItem, openEditShopItem, saveEditingShopItem, deleteShoppingItem, saveCloudData,
           onCurrencyChange, calcTwdAmount, isListening, voiceNotice, startVoiceInput,
-          splitMembers, splitRecords, newMemberName, newSplit, editingSplit,
+          splitMembers, splitRecords, poolFund, poolTotalExpense, remainingPoolFund, poolRefundPerPerson, promptDepositPool,
+          newMemberName, newSplit, editingSplit,
           addSplitMember, removeSplitMember, selectAllMembers, addSplitRecord,
           openEditSplitModal, saveEditingSplit, deleteSplitRecord, toggleSettled, clearAllSplits,
           settlementDirectives, copySettlementText
