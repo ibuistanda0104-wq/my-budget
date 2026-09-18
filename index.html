@@ -374,7 +374,7 @@
 
           </div>
 
-          <!-- 代墊項目明細清單 -->
+          <!-- 代墊項目明細清單（全面加入防呆保護） -->
           <div>
             <div class="flex justify-between items-center mb-2 px-1">
               <div class="text-xs font-bold text-slate-600">代墊項目明細 ({{ splitRecords.length }} 筆)</div>
@@ -389,7 +389,7 @@
               <div v-for="(rec, idx) in splitRecords" :key="rec.id || idx" class="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 space-y-2">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2">
-                    <span class="font-bold text-xs text-slate-800">{{ rec.title }}</span>
+                    <span class="font-bold text-xs text-slate-800">{{ rec.title || '未命名款項' }}</span>
                     <span :class="rec.settled ? 'bg-slate-100 text-slate-400' : 'bg-emerald-50 text-emerald-600'" class="text-[10px] px-1.5 py-0.5 rounded font-medium">
                       {{ rec.settled ? '已結清' : '分帳中' }}
                     </span>
@@ -398,16 +398,16 @@
                     </span>
                   </div>
                   <div class="text-xs font-bold text-slate-800">
-                    NT$ {{ Number(rec.amount).toLocaleString() }}
+                    NT$ {{ Number(rec.amount || 0).toLocaleString() }}
                   </div>
                 </div>
 
                 <div class="text-[11px] text-slate-500 flex flex-wrap justify-between items-center pt-1 border-t border-slate-50">
                   <div>
-                    由 <span class="font-semibold text-indigo-600">{{ rec.payer }}</span> 付款，
-                    分攤：<span class="text-slate-700 font-medium">{{ rec.participants.join('、') }}</span>
-                    <span v-if="!rec.payer.includes('公積金')">
-                      (每人約 ${{ Math.floor(rec.amount / rec.participants.length) }})
+                    由 <span class="font-semibold text-indigo-600">{{ rec.payer || '未知' }}</span> 付款，
+                    分攤：<span class="text-slate-700 font-medium">{{ (rec.participants || []).join('、') }}</span>
+                    <span v-if="!(rec.payer && rec.payer.includes('公積金'))">
+                      (每人約 ${{ Math.floor((rec.amount || 0) / Math.max(1, (rec.participants || []).length)) }})
                     </span>
                   </div>
                 </div>
@@ -456,7 +456,7 @@
 
       </main>
 
-      <!-- 底部五大固定導航欄 -->
+      <!-- 底部導航欄 -->
       <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200 grid grid-cols-5 py-2 z-40">
         <button @click="switchTab('records')" class="flex flex-col items-center py-1 text-xs" :class="currentTab === 'records' ? 'text-blue-600 font-bold' : 'text-slate-400'">
           <span class="text-base">📋</span>
@@ -555,7 +555,7 @@
         </div>
       </div>
 
-      <!-- 修改代墊記錄彈窗 (支援修改為公積金) -->
+      <!-- 修改代墊記錄彈窗 -->
       <div v-if="editingSplit" class="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-3 shadow-2xl">
           <div class="text-sm font-bold text-slate-800">✏️ 修改分帳記錄</div>
@@ -659,7 +659,7 @@
         // AA 分帳與公積金模組
         const splitMembers = ref([]);
         const splitRecords = ref([]);
-        const poolFund = ref(0); // 旅遊公積金總存入額
+        const poolFund = ref(0);
         const newMemberName = ref('');
         const newSplit = ref({ title: '', amount: null, payer: '', participants: [] });
         const editingSplit = ref(null);
@@ -736,7 +736,11 @@
               if (val.categoryBudgets) categoryBudgets.value = val.categoryBudgets;
               shoppingList.value = val.shoppingList || [];
               splitMembers.value = val.splitMembers || [];
-              splitRecords.value = val.splitRecords || [];
+              splitRecords.value = (val.splitRecords || []).map(r => ({
+                ...r,
+                participants: r.participants || [],
+                payer: r.payer || ''
+              }));
               if (val.poolFund !== undefined) poolFund.value = Number(val.poolFund) || 0;
 
               isDataLoaded.value = true;
@@ -748,15 +752,8 @@
         };
 
         const saveCloudData = async () => {
-          if (!isDataLoaded.value) {
-            console.warn('尚未完成雲端資料初始化載入，已攔截儲存請求以保護資料庫');
-            return;
-          }
-
-          if (!transactions.value || transactions.value.length === 0) {
-            console.warn('本地帳目清單為空，已攔截全量覆蓋以防誤刪');
-            return;
-          }
+          if (!isDataLoaded.value) return;
+          if (!transactions.value || transactions.value.length === 0) return;
 
           try {
             await fetch(FIREBASE_URL, {
@@ -790,7 +787,6 @@
           setInterval(checkAndRefreshDay, 15 * 60 * 1000);
         });
 
-        // ====== 💰 公積金儲值與試算邏輯 ======
         const promptDepositPool = () => {
           const mode = confirm("點擊【確定】依「每人預繳」儲值（例：每人 1000）\n點擊【取消】直接輸入「自訂總金額」");
           if (mode) {
@@ -811,25 +807,21 @@
           }
         };
 
-        // 統計由公積金扣款的累計金額
         const poolTotalExpense = computed(() => {
           return splitRecords.value
             .filter(r => !r.settled && r.payer && r.payer.includes('公積金'))
             .reduce((s, r) => s + (Number(r.amount) || 0), 0);
         });
 
-        // 公積金剩餘餘額
         const remainingPoolFund = computed(() => {
           return (Number(poolFund.value) || 0) - poolTotalExpense.value;
         });
 
-        // 旅程結束後每人可退還金額
         const poolRefundPerPerson = computed(() => {
           if (!splitMembers.value.length || remainingPoolFund.value <= 0) return 0;
           return Math.floor(remainingPoolFund.value / splitMembers.value.length);
         });
 
-        // ====== AA 分帳操作邏輯 ======
         const addSplitMember = () => {
           const name = newMemberName.value.trim();
           if (name && !splitMembers.value.includes(name)) {
@@ -842,7 +834,7 @@
         const removeSplitMember = (idx) => {
           const removed = splitMembers.value.splice(idx, 1)[0];
           if (newSplit.value.payer === removed) newSplit.value.payer = '';
-          newSplit.value.participants = newSplit.value.participants.filter(p => p !== removed);
+          newSplit.value.participants = (newSplit.value.participants || []).filter(p => p !== removed);
           saveCloudData();
         };
 
@@ -904,30 +896,28 @@
           }
         };
 
-        // ====== ⚡ 最佳化平整結算演算法（消除尾差 + 誰該給誰多少） ======
         const settlementDirectives = computed(() => {
           const balances = {};
           splitMembers.value.forEach(m => balances[m] = 0);
 
           splitRecords.value.filter(r => !r.settled).forEach(rec => {
             const amount = Number(rec.amount) || 0;
-            const count = rec.participants.length;
+            const participants = rec.participants || [];
+            const count = participants.length;
             if (count === 0 || amount <= 0) return;
 
-            // 公積金付款：累計公費支出，不計入個人之間的互轉
             if (rec.payer && rec.payer.includes('公積金')) {
               return;
             }
 
-            // 平整化消除尾差：每人整數分攤，餘額由代墊人吸收，每個人負擔金額完全齊平
             const perPerson = Math.floor(amount / count);
             const remainder = amount - (perPerson * count);
 
-            if (balances[rec.payer] !== undefined) {
+            if (rec.payer && balances[rec.payer] !== undefined) {
               balances[rec.payer] += (amount - remainder);
             }
 
-            rec.participants.forEach(p => {
+            participants.forEach(p => {
               if (balances[p] !== undefined) {
                 balances[p] -= perPerson;
               }
@@ -943,7 +933,6 @@
             else if (bal < -1) debtors.push({ person, amount: -bal });
           });
 
-          // 金額由大到小排序，最大化一次結清
           creditors.sort((a, b) => b.amount - a.amount);
           debtors.sort((a, b) => b.amount - a.amount);
 
@@ -973,7 +962,6 @@
           return directives;
         });
 
-        // 複製到 LINE 文字格式強化
         const copySettlementText = () => {
           if (settlementDirectives.value.length === 0 && poolTotalExpense.value === 0) {
             return alert('目前沒有需要結算的款項！');
@@ -1009,7 +997,6 @@
           });
         };
 
-        // 語音輸入邏輯
         const startVoiceInput = () => {
           const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
           if (!SpeechRecognition) return alert('瀏覽器不支援語音辨識，請使用 Chrome 或 Safari。');
