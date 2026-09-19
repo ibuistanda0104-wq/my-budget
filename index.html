@@ -10,6 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="個人記帳">
 
+  <!-- Tailwind CSS, Vue 3, Chart.js -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -238,7 +239,7 @@
             </div>
           </div>
 
-          <!-- 公基金看板 -->
+          <!-- 💰 公基金看板（三大均算數值呈現） -->
           <div class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-4 rounded-2xl shadow-md space-y-3">
             <div class="flex justify-between items-center">
               <div class="text-xs font-bold flex items-center gap-1.5">
@@ -251,45 +252,76 @@
             
             <div class="grid grid-cols-2 gap-2 pt-1">
               <div class="bg-white/15 backdrop-blur-sm p-2.5 rounded-xl">
-                <div class="text-[10px] text-emerald-100">公費總存入</div>
+                <div class="text-[10px] text-emerald-100">公費總存入 (共{{ totalMemberCount }}人)</div>
                 <div class="text-sm font-bold mt-0.5">NT$ {{ (currentTopic.poolFund || 0).toLocaleString() }}</div>
+                <div class="text-[10px] text-emerald-200 mt-0.5">每人預繳: NT$ {{ depositPerPerson.toLocaleString() }}</div>
               </div>
               <div class="bg-white/15 backdrop-blur-sm p-2.5 rounded-xl">
                 <div class="text-[10px] text-emerald-100">公基金剩餘額</div>
                 <div class="text-base font-extrabold mt-0.5" :class="remainingPoolFund < 0 ? 'text-rose-200' : 'text-amber-200'">
                   NT$ {{ remainingPoolFund.toLocaleString() }}
                 </div>
+                <div class="text-[10px] text-emerald-200 mt-0.5">每人可退: NT$ {{ refundPerPerson.toLocaleString() }}</div>
               </div>
             </div>
 
             <div class="flex justify-between items-center text-[11px] text-emerald-100 bg-black/10 px-3 py-1.5 rounded-xl">
-              <span>累計已扣款：NT$ {{ poolTotalExpense.toLocaleString() }}</span>
-              <span v-if="remainingPoolFund > 0 && splitMembers.length > 0">每人退回：NT$ {{ poolRefundPerPerson.toLocaleString() }}</span>
-              <span v-else-if="remainingPoolFund < 0" class="text-rose-200 font-bold">⚠️ 公費超支透支</span>
+              <span>公費已扣：NT$ {{ poolTotalExpense.toLocaleString() }} (每人已扣 NT$ {{ spentPerPerson.toLocaleString() }})</span>
+              <span v-if="remainingPoolFund < 0" class="text-rose-200 font-bold">⚠️ 公費超支透支</span>
             </div>
           </div>
 
-          <!-- 旅伴成員名冊管理 -->
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-            <div class="text-xs font-bold text-slate-800 mb-2 flex items-center justify-between">
-              <span>👥 【{{ currentTopic.name }}】旅伴名冊 ({{ splitMembers.length }}人)</span>
-              <span class="text-[10px] text-slate-400">若有固定成員可在此加入</span>
+          <!-- 🌟 核心升級：名冊與分攤合而為一的旅伴欄位 -->
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-2.5">
+            <div class="text-xs font-bold text-slate-800 flex items-center justify-between">
+              <span>👥 旅伴名冊與分攤成員 (勾選即代表平分)</span>
+              <span class="text-[11px] text-indigo-600 font-bold">共 {{ totalMemberCount }} 人</span>
             </div>
-            <div class="flex gap-2 mb-2.5">
+
+            <!-- 新增旅伴輸入行 -->
+            <div class="flex gap-2">
               <input v-model="newMemberName" placeholder="輸入成員稱謂 (例: 姊姊、小明)" class="flex-1 p-2 text-xs border rounded-xl bg-slate-50 outline-none">
-              <button @click="addSplitMember" class="px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition">
+              <button @click="addSplitMember" class="px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition">
                 + 加入
               </button>
             </div>
-            <div class="flex flex-wrap gap-1.5">
-              <span v-for="(m, idx) in splitMembers" :key="idx" class="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-medium flex items-center gap-1.5">
-                {{ m }}
-                <button @click="removeSplitMember(idx)" class="text-indigo-300 hover:text-rose-500">✕</button>
-              </span>
+
+            <!-- 📊 三大精算資訊列 -->
+            <div class="text-[11px] bg-indigo-50/70 p-2 rounded-xl text-indigo-900 flex justify-between items-center font-medium border border-indigo-100/60">
+              <span>預繳: <strong>NT$ {{ depositPerPerson.toLocaleString() }}</strong></span>
+              <span>已扣: <strong>NT$ {{ spentPerPerson.toLocaleString() }}</strong></span>
+              <span class="text-emerald-700">可退: <strong>NT$ {{ refundPerPerson.toLocaleString() }}</strong></span>
+            </div>
+
+            <!-- 工具列：單獨打平分人數、全選、清空勾選 -->
+            <div class="flex items-center justify-between pt-1">
+              <div class="flex items-center gap-1 text-xs">
+                <span class="text-[11px] font-bold text-slate-600">平分人數:</span>
+                <input v-model.number="newSplit.customCount" type="number" placeholder="例: 8" class="w-14 p-1 text-xs border border-indigo-300 rounded-lg text-center font-bold text-indigo-700 bg-white outline-none">
+                <span class="text-[11px] text-slate-400">人</span>
+              </div>
+              <div class="flex gap-1.5">
+                <button @click="selectAllMembers" type="button" class="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium">全選</button>
+                <button @click="clearParticipants" type="button" class="text-[11px] px-2.5 py-1 text-blue-600">清空勾選</button>
+              </div>
+            </div>
+
+            <!-- 成員卡片勾選區 (合一名冊，右側附帶刪除按鈕) -->
+            <div v-if="splitMembers.length === 0" class="text-[11px] text-slate-400 py-3 text-center">
+              尚無名冊成員。可直接在上方「平分人數」打數字，或輸入名字加入旅伴。
+            </div>
+            <div class="grid grid-cols-2 gap-1.5 pt-1 max-h-48 overflow-y-auto">
+              <div v-for="(m, idx) in splitMembers" :key="idx" class="flex items-center justify-between p-2 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-100">
+                <label class="flex items-center gap-1.5 flex-1 cursor-pointer overflow-hidden">
+                  <input type="checkbox" :value="m" v-model="newSplit.participants" @change="onParticipantToggled" class="w-3.5 h-3.5 text-indigo-600 rounded">
+                  <span class="text-xs font-semibold text-slate-700 truncate">{{ m }}</span>
+                </label>
+                <button @click="removeSplitMember(idx)" class="text-slate-300 hover:text-rose-500 text-xs px-1" title="刪除此成員">✕</button>
+              </div>
             </div>
           </div>
 
-          <!-- 記錄款項表單（平分人數放置於旅伴名冊欄位中） -->
+          <!-- 記錄款項區塊（項目名稱改為選填） -->
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
             <div class="text-xs font-bold text-slate-800 flex justify-between items-center">
               <span>➕ 記錄一筆款項</span>
@@ -298,49 +330,17 @@
               </span>
             </div>
 
-            <!-- 總金額獨立清楚整齊 -->
             <div class="grid grid-cols-2 gap-2">
-              <input v-model="newSplit.title" placeholder="款項項目 (例: 羊肉爐)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50">
+              <input v-model="newSplit.title" placeholder="項目 (選填，留空帶入時間)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50">
               <input v-model.number="newSplit.amount" type="number" placeholder="總金額 (NT$)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50 font-bold">
             </div>
 
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-[10px] text-slate-400 mb-1">誰先付款 / 付款人</label>
-                <select v-model="newSplit.payer" class="w-full p-2 border rounded-xl text-xs bg-slate-50 font-semibold text-slate-700">
-                  <option value="💰 公基金現金" class="text-emerald-700 font-bold">💰 公基金現金（公款直接付款）</option>
-                  <option v-for="m in splitMembers" :key="m" :value="m">{{ m }} (個人代墊)</option>
-                </select>
-              </div>
-              <div>
-                <label class="block text-[10px] text-slate-400 mb-1">名冊快速帶入</label>
-                <button @click="selectAllMembers" type="button" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-medium transition">
-                  全體名冊平分
-                </button>
-              </div>
-            </div>
-
-            <!-- 🌟 平分人數直接放置於【分攤旅伴名冊】標題列 -->
-            <div class="p-3 bg-indigo-50/40 rounded-xl border border-indigo-100 space-y-2">
-              <div class="flex items-center justify-between">
-                <div class="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
-                  <span>👥</span> 分攤旅伴名冊
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <span class="text-[11px] font-bold text-indigo-800">平分人數:</span>
-                  <input v-model.number="newSplit.customCount" type="number" placeholder="例: 8" class="w-16 p-1 text-xs border border-indigo-300 rounded-lg text-center font-bold text-indigo-700 bg-white outline-none">
-                  <span class="text-[11px] text-slate-500">人</span>
-                  <button @click="clearParticipants" type="button" class="text-[10px] text-blue-600 ml-1">清空</button>
-                </div>
-              </div>
-
-              <!-- 名單勾選區 -->
-              <div class="grid grid-cols-3 gap-1.5 pt-1">
-                <label v-for="m in splitMembers" :key="m" class="flex items-center gap-1.5 text-xs p-1.5 bg-white rounded-lg border border-indigo-50 cursor-pointer">
-                  <input type="checkbox" :value="m" v-model="newSplit.participants" @change="onParticipantToggled" class="w-3.5 h-3.5 text-indigo-600 rounded">
-                  <span class="truncate text-[11px]">{{ m }}</span>
-                </label>
-              </div>
+            <div>
+              <label class="block text-[10px] text-slate-400 mb-1">誰先付款 / 付款來源</label>
+              <select v-model="newSplit.payer" class="w-full p-2 border rounded-xl text-xs bg-slate-50 font-semibold text-slate-700">
+                <option value="💰 公基金現金" class="text-emerald-700 font-bold">💰 公基金現金（公款直接付款）</option>
+                <option v-for="m in splitMembers" :key="m" :value="m">{{ m }} (個人代墊)</option>
+              </select>
             </div>
 
             <button @click="addSplitRecord" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-sm transition">
@@ -348,7 +348,7 @@
             </button>
           </div>
 
-          <!-- 結算彙整看板 -->
+          <!-- ⚡ 結算看板 -->
           <div class="bg-indigo-600 text-white p-4 rounded-2xl shadow-md space-y-3">
             <div class="flex justify-between items-center">
               <div class="text-xs font-bold flex items-center gap-1.5">
@@ -361,19 +361,22 @@
 
             <div class="bg-white/15 p-3 rounded-xl space-y-1.5 text-xs backdrop-blur-sm border border-white/10">
               <div class="font-bold text-amber-200 flex items-center gap-1">
-                <span>💰</span> 公基金狀態
+                <span>💰</span> 公基金精算狀態
               </div>
               <div class="flex justify-between text-indigo-100">
                 <span>公費總存入：</span>
-                <span class="font-bold text-white">NT$ {{ (currentTopic.poolFund || 0).toLocaleString() }}</span>
+                <span class="font-bold text-white">NT$ {{ (currentTopic.poolFund || 0).toLocaleString() }} (每人 ${{ depositPerPerson }})</span>
               </div>
               <div class="flex justify-between text-indigo-100">
-                <span>累計已扣款（由公費支付）：</span>
-                <span class="font-bold text-amber-300">NT$ {{ poolTotalExpense.toLocaleString() }}</span>
+                <span>公費已支出：</span>
+                <span class="font-bold text-amber-300">NT$ {{ poolTotalExpense.toLocaleString() }} (每人 ${{ spentPerPerson }})</span>
               </div>
               <div class="flex justify-between text-indigo-100 pt-1 border-t border-white/10">
                 <span>公基金剩餘額：</span>
                 <span class="font-bold text-emerald-300">NT$ {{ remainingPoolFund.toLocaleString() }}</span>
+              </div>
+              <div v-if="remainingPoolFund > 0 && totalMemberCount > 0" class="text-[11px] text-emerald-200 text-right">
+                🎉 旅程結束每人可退還 NT$ {{ refundPerPerson.toLocaleString() }}
               </div>
             </div>
 
@@ -393,7 +396,7 @@
             </div>
 
             <div class="space-y-1.5 pt-1">
-              <div class="text-xs font-bold text-indigo-100">🤝 成員私下對沖互轉（非公費項目）：</div>
+              <div class="text-xs font-bold text-indigo-100">🤝 成員私下對沖互轉（名單 AA 結算）：</div>
               <div v-if="settlementDirectives.length === 0" class="text-center py-2 text-xs text-indigo-200 bg-white/10 rounded-xl">
                 目前無對沖款項，皆已結清！
               </div>
@@ -404,7 +407,6 @@
                 </div>
               </div>
             </div>
-
           </div>
 
           <!-- 明細清單 -->
@@ -422,7 +424,7 @@
               <div v-for="(rec, idx) in splitRecords" :key="rec.id || idx" class="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 space-y-2">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2">
-                    <span class="font-bold text-xs text-slate-800">{{ rec.title || '未命名款項' }}</span>
+                    <span class="font-bold text-xs text-slate-800">{{ rec.title || '分攤開銷' }}</span>
                     <span :class="rec.settled ? 'bg-slate-100 text-slate-400' : 'bg-emerald-50 text-emerald-600'" class="text-[10px] px-1.5 py-0.5 rounded font-medium">
                       {{ rec.settled ? '已結清' : '分帳中' }}
                     </span>
@@ -649,6 +651,7 @@
 
         const splitMembers = computed(() => currentTopic.value.members || []);
         const splitRecords = computed(() => currentTopic.value.records || []);
+        const totalMemberCount = computed(() => splitMembers.value.length);
 
         const newMemberName = ref('');
         const newSplit = ref({ title: '', amount: null, customCount: null, payer: '💰 公基金現金', participants: [] });
@@ -801,6 +804,7 @@
           setInterval(checkAndRefreshDay, 15 * 60 * 1000);
         });
 
+        // 🌟 即時動態試算：每人分攤多少
         const perPersonSplitPreview = computed(() => {
           const amt = Number(newSplit.value.amount) || 0;
           const cnt = Number(newSplit.value.customCount) || (newSplit.value.participants || []).length;
@@ -821,6 +825,7 @@
           newSplit.value.customCount = null;
         };
 
+        // 主題管理
         const addTopic = () => {
           const name = prompt('請輸入新分帳主題名稱：\n(例如: 2026 日本行、聚餐露營)', '新分帳主題');
           if (name && name.trim()) {
@@ -882,6 +887,7 @@
           }
         };
 
+        // 🌟 公基金精算：總支出、每人平均預繳、每人已扣款、每人可退
         const poolTotalExpense = computed(() => {
           return (currentTopic.value.records || [])
             .filter(r => !r.settled && ((r.payer && r.payer.includes('公基金')) || (!r.customCount && (!r.participants || r.participants.length === 0))))
@@ -904,12 +910,25 @@
           return (Number(currentTopic.value.poolFund) || 0) - poolTotalExpense.value;
         });
 
-        const poolRefundPerPerson = computed(() => {
-          const count = (currentTopic.value.members || []).length;
+        const depositPerPerson = computed(() => {
+          const count = totalMemberCount.value;
+          if (!count) return 0;
+          return Math.floor((Number(currentTopic.value.poolFund) || 0) / count);
+        });
+
+        const spentPerPerson = computed(() => {
+          const count = totalMemberCount.value;
+          if (!count) return 0;
+          return Math.floor(poolTotalExpense.value / count);
+        });
+
+        const refundPerPerson = computed(() => {
+          const count = totalMemberCount.value;
           if (!count || remainingPoolFund.value <= 0) return 0;
           return Math.floor(remainingPoolFund.value / count);
         });
 
+        // 旅伴成員操作
         const addSplitMember = () => {
           const name = newMemberName.value.trim();
           if (name && !currentTopic.value.members.includes(name)) {
@@ -931,17 +950,27 @@
           newSplit.value.customCount = newSplit.value.participants.length;
         };
 
+        // 🌟 新增款項記錄：項目名稱為選填，留空自動預設
         const addSplitRecord = () => {
-          if (!newSplit.value.title) return alert('請輸入項目名稱');
-          if (!newSplit.value.amount || newSplit.value.amount <= 0) return alert('請輸入正確金額');
+          if (!newSplit.value.amount || newSplit.value.amount <= 0) return alert('請輸入有效金額');
           
+          let title = (newSplit.value.title || '').trim();
+          if (!title) {
+            const now = new Date();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const h = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            title = `分攤開銷_${m}${d}_${h}${min}`;
+          }
+
           const payer = newSplit.value.payer || '💰 公基金現金';
           const participants = [...(newSplit.value.participants || [])];
           const customCount = newSplit.value.customCount ? Number(newSplit.value.customCount) : null;
 
           currentTopic.value.records.unshift({
             id: Date.now().toString(),
-            title: newSplit.value.title,
+            title: title,
             amount: Number(newSplit.value.amount),
             payer: payer,
             participants: participants,
@@ -1069,12 +1098,12 @@
           const t = currentTopic.value;
           let text = `✈️【${t.name} 旅費結算清單】\n`;
           
-          text += `【💰 ${t.name} - 公基金狀態】\n`;
-          text += `・公費總存入：NT$ ${(t.poolFund || 0).toLocaleString()}\n`;
-          text += `・累計已扣款：NT$ ${poolTotalExpense.value.toLocaleString()}（由公費支付）\n`;
+          text += `【💰 ${t.name} - 公基金精算狀態】\n`;
+          text += `・公費總存入：NT$ ${(t.poolFund || 0).toLocaleString()}（共 ${totalMemberCount.value} 人，每人平均預繳 NT$ ${depositPerPerson.value.toLocaleString()}）\n`;
+          text += `・公費已支出：NT$ ${poolTotalExpense.value.toLocaleString()}（每人已分攤扣除 NT$ ${spentPerPerson.value.toLocaleString()}）\n`;
           text += `・公基金剩餘：NT$ ${remainingPoolFund.value.toLocaleString()}\n`;
-          if (remainingPoolFund.value > 0 && t.members.length > 0) {
-            text += `・旅程結束每人可退回：NT$ ${poolRefundPerPerson.value.toLocaleString()}\n`;
+          if (remainingPoolFund.value > 0 && totalMemberCount.value > 0) {
+            text += `・旅程結束每人可退回：NT$ ${refundPerPerson.value.toLocaleString()}\n`;
           } else if (remainingPoolFund.value < 0) {
             text += `⚠️ 公費已透支超支 NT$ ${Math.abs(remainingPoolFund.value).toLocaleString()}，需每人補繳！\n`;
           }
@@ -1096,7 +1125,7 @@
             text += '------------------------------------\n';
           }
 
-          text += '【🤝 成員私下對沖互轉】\n';
+          text += '【🤝 成員私下對沖互轉（名單 AA 結算）】\n';
           if (settlementDirectives.value.length === 0) {
             text += '目前無個人私下積欠款項，款項皆已結清！\n';
           } else {
@@ -1334,9 +1363,10 @@
           addCategory, removeCategory, weeklyShoppingCost, monthlyShoppingCost,
           addShoppingItem, deleteShoppingItem, saveCloudData,
           onCurrencyChange, calcTwdAmount, isListening, voiceNotice, startVoiceInput,
-          splitTopics, currentTopicId, currentTopic, splitMembers, splitRecords,
+          splitTopics, currentTopicId, currentTopic, splitMembers, splitRecords, totalMemberCount,
           addTopic, renameTopic, deleteTopic,
-          poolTotalExpense, poolReimbursements, remainingPoolFund, poolRefundPerPerson, promptDepositPool,
+          poolTotalExpense, poolReimbursements, remainingPoolFund,
+          depositPerPerson, spentPerPerson, refundPerPerson, promptDepositPool,
           newMemberName, newSplit, perPersonSplitPreview, onParticipantToggled, clearParticipants,
           addSplitMember, removeSplitMember, selectAllMembers, addSplitRecord,
           deleteSplitRecord, toggleSettled, clearAllSplits, getSplitRecordDescription,
