@@ -271,70 +271,22 @@
             </div>
           </div>
 
-          <!-- 🌟 核心升級：名冊與分攤合而為一的旅伴欄位 -->
-          <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-2.5">
-            <div class="text-xs font-bold text-slate-800 flex items-center justify-between">
-              <span>👥 旅伴名冊與分攤成員 (勾選即代表平分)</span>
-              <span class="text-[11px] text-indigo-600 font-bold">共 {{ totalMemberCount }} 人</span>
-            </div>
-
-            <!-- 新增旅伴輸入行 -->
-            <div class="flex gap-2">
-              <input v-model="newMemberName" placeholder="輸入成員稱謂 (例: 姊姊、小明)" class="flex-1 p-2 text-xs border rounded-xl bg-slate-50 outline-none">
-              <button @click="addSplitMember" class="px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition">
-                + 加入
-              </button>
-            </div>
-
-            <!-- 📊 三大精算資訊列 -->
-            <div class="text-[11px] bg-indigo-50/70 p-2 rounded-xl text-indigo-900 flex justify-between items-center font-medium border border-indigo-100/60">
-              <span>預繳: <strong>NT$ {{ depositPerPerson.toLocaleString() }}</strong></span>
-              <span>已扣: <strong>NT$ {{ spentPerPerson.toLocaleString() }}</strong></span>
-              <span class="text-emerald-700">可退: <strong>NT$ {{ refundPerPerson.toLocaleString() }}</strong></span>
-            </div>
-
-            <!-- 工具列：單獨打平分人數、全選、清空勾選 -->
-            <div class="flex items-center justify-between pt-1">
-              <div class="flex items-center gap-1 text-xs">
-                <span class="text-[11px] font-bold text-slate-600">平分人數:</span>
-                <input v-model.number="newSplit.customCount" type="number" placeholder="例: 8" class="w-14 p-1 text-xs border border-indigo-300 rounded-lg text-center font-bold text-indigo-700 bg-white outline-none">
-                <span class="text-[11px] text-slate-400">人</span>
-              </div>
-              <div class="flex gap-1.5">
-                <button @click="selectAllMembers" type="button" class="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium">全選</button>
-                <button @click="clearParticipants" type="button" class="text-[11px] px-2.5 py-1 text-blue-600">清空勾選</button>
-              </div>
-            </div>
-
-            <!-- 成員卡片勾選區 (合一名冊，右側附帶刪除按鈕) -->
-            <div v-if="splitMembers.length === 0" class="text-[11px] text-slate-400 py-3 text-center">
-              尚無名冊成員。可直接在上方「平分人數」打數字，或輸入名字加入旅伴。
-            </div>
-            <div class="grid grid-cols-2 gap-1.5 pt-1 max-h-48 overflow-y-auto">
-              <div v-for="(m, idx) in splitMembers" :key="idx" class="flex items-center justify-between p-2 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-100">
-                <label class="flex items-center gap-1.5 flex-1 cursor-pointer overflow-hidden">
-                  <input type="checkbox" :value="m" v-model="newSplit.participants" @change="onParticipantToggled" class="w-3.5 h-3.5 text-indigo-600 rounded">
-                  <span class="text-xs font-semibold text-slate-700 truncate">{{ m }}</span>
-                </label>
-                <button @click="removeSplitMember(idx)" class="text-slate-300 hover:text-rose-500 text-xs px-1" title="刪除此成員">✕</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- 記錄款項區塊（項目名稱改為選填） -->
+          <!-- 🌟 核心整合卡片：項目金額、旅伴名冊、平分人數與儲存按鈕一氣呵成 -->
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
             <div class="text-xs font-bold text-slate-800 flex justify-between items-center">
-              <span>➕ 記錄一筆款項</span>
+              <span>➕ 記錄一筆分攤款項</span>
               <span v-if="perPersonSplitPreview > 0" class="text-indigo-600 font-bold text-xs">
                 💡 每人應付約 NT$ {{ perPersonSplitPreview.toLocaleString() }}
               </span>
             </div>
 
+            <!-- 款項項目與金額 -->
             <div class="grid grid-cols-2 gap-2">
               <input v-model="newSplit.title" placeholder="項目 (選填，留空帶入時間)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50">
               <input v-model.number="newSplit.amount" type="number" placeholder="總金額 (NT$)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50 font-bold">
             </div>
 
+            <!-- 付款人 -->
             <div>
               <label class="block text-[10px] text-slate-400 mb-1">誰先付款 / 付款來源</label>
               <select v-model="newSplit.payer" class="w-full p-2 border rounded-xl text-xs bg-slate-50 font-semibold text-slate-700">
@@ -343,8 +295,60 @@
               </select>
             </div>
 
-            <button @click="addSplitRecord" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-sm transition">
-              + 儲存記錄（即時更新公基金與代墊結算）
+            <!-- 旅伴名冊與分攤設定子區塊 -->
+            <div class="p-3 bg-indigo-50/40 rounded-xl border border-indigo-100/70 space-y-2.5">
+              <div class="text-xs font-bold text-indigo-950 flex items-center justify-between">
+                <span>👥 旅伴名冊與分攤成員 (勾選即平分)</span>
+                <span class="text-[11px] text-indigo-600 font-bold">共 {{ totalMemberCount }} 人</span>
+              </div>
+
+              <!-- 新增成員行 -->
+              <div class="flex gap-2">
+                <input v-model="newMemberName" placeholder="輸入成員稱謂 (例: 姊姊、小明)" class="flex-1 p-2 text-xs border rounded-xl bg-white outline-none">
+                <button @click="addSplitMember" class="px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition">
+                  + 加入
+                </button>
+              </div>
+
+              <!-- 三大均算標籤列 -->
+              <div class="text-[10px] bg-white p-2 rounded-xl text-indigo-900 flex justify-between items-center font-medium border border-indigo-50 shadow-xs">
+                <span>預繳: <strong>NT$ {{ depositPerPerson.toLocaleString() }}</strong></span>
+                <span>已扣: <strong>NT$ {{ spentPerPerson.toLocaleString() }}</strong></span>
+                <span class="text-emerald-700">可退: <strong>NT$ {{ refundPerPerson.toLocaleString() }}</strong></span>
+              </div>
+
+              <!-- 平分人數工具列 -->
+              <div class="flex items-center justify-between pt-0.5">
+                <div class="flex items-center gap-1 text-xs">
+                  <span class="text-[11px] font-bold text-slate-700">平分人數:</span>
+                  <input v-model.number="newSplit.customCount" type="number" placeholder="例: 8" class="w-14 p-1 text-xs border border-indigo-300 rounded-lg text-center font-bold text-indigo-700 bg-white outline-none">
+                  <span class="text-[11px] text-slate-400">人</span>
+                </div>
+                <div class="flex gap-1.5">
+                  <button @click="selectAllMembers" type="button" class="text-[11px] px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 rounded-lg font-medium border border-slate-200">全選</button>
+                  <button @click="clearParticipants" type="button" class="text-[11px] px-2.5 py-1 text-blue-600">清空勾選</button>
+                </div>
+              </div>
+
+              <!-- 成員勾選列表 -->
+              <div v-if="splitMembers.length === 0" class="text-[11px] text-slate-400 py-2 text-center bg-white/60 rounded-lg border border-dashed border-slate-200">
+                尚無名冊。可直接在上方輸入「平分人數」打數字，或加入旅伴名字。
+              </div>
+              <div v-else class="grid grid-cols-2 gap-1.5 pt-0.5 max-h-40 overflow-y-auto">
+                <div v-for="(m, idx) in splitMembers" :key="idx" class="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-100 shadow-xs">
+                  <label class="flex items-center gap-1.5 flex-1 cursor-pointer overflow-hidden">
+                    <input type="checkbox" :value="m" v-model="newSplit.participants" @change="onParticipantToggled" class="w-3.5 h-3.5 text-indigo-600 rounded">
+                    <span class="text-xs font-semibold text-slate-700 truncate">{{ m }}</span>
+                  </label>
+                  <button @click="removeSplitMember(idx)" class="text-slate-300 hover:text-rose-500 text-xs px-1" title="刪除此成員">✕</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 🌟 醒目的儲存按鈕，填完數字後直接就在下方 -->
+            <button @click="addSplitRecord" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md active:scale-[0.99] transition flex items-center justify-center gap-1.5">
+              <span>💾</span>
+              <span>+ 儲存此筆記錄（即時更新公基金與結算）</span>
             </button>
           </div>
 
@@ -1088,7 +1092,7 @@
             creditor.amount -= settleAmount;
 
             if (debtor.amount <= 0) i++;
-            if (creditor.amount <= 0) j++;
+            if (creditor.Amount <= 0) j++;
           }
 
           return directives;
