@@ -10,7 +10,6 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="個人記帳">
 
-  <!-- Tailwind CSS, Vue 3, Chart.js -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -46,7 +45,6 @@
           </div>
         </div>
 
-        <!-- 2x2 預算收支統計看板 -->
         <div class="grid grid-cols-2 gap-2 mt-2">
           <div class="bg-white/15 backdrop-blur-sm p-2.5 rounded-2xl">
             <div class="text-[11px] text-blue-100">本月總收入</div>
@@ -73,8 +71,6 @@
         <!-- 分頁 1：收支記帳 -->
         <div v-show="currentTab === 'records'" class="space-y-4">
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
-
-            <!-- 🎤 語音記帳按鈕 -->
             <div>
               <button @click="startVoiceInput" type="button" class="w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition" :class="isListening ? 'bg-rose-500 text-white recording-pulse shadow-md' : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700'">
                 <span>{{ isListening ? '🔴 聆聽中... 請說話（說完自動辨識）' : '🎤 點我用語音記帳（收入、支出、外幣皆可）' }}</span>
@@ -273,11 +269,11 @@
             </div>
           </div>
 
-          <!-- 旅伴成員管理 -->
+          <!-- 旅伴成員名冊管理 -->
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
             <div class="text-xs font-bold text-slate-800 mb-2 flex items-center justify-between">
               <span>👥 【{{ currentTopic.name }}】旅伴名冊 ({{ splitMembers.length }}人)</span>
-              <span class="text-[10px] text-slate-400">若有特定名冊可在此加入</span>
+              <span class="text-[10px] text-slate-400">若有固定成員可在此加入</span>
             </div>
             <div class="flex gap-2 mb-2.5">
               <input v-model="newMemberName" placeholder="輸入成員稱謂 (例: 姊姊、小明)" class="flex-1 p-2 text-xs border rounded-xl bg-slate-50 outline-none">
@@ -293,7 +289,7 @@
             </div>
           </div>
 
-          <!-- 🌟 記錄款項（直接打人數平分功能） -->
+          <!-- 記錄款項表單（平分人數放置於旅伴名冊欄位中） -->
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
             <div class="text-xs font-bold text-slate-800 flex justify-between items-center">
               <span>➕ 記錄一筆款項</span>
@@ -302,10 +298,10 @@
               </span>
             </div>
 
-            <div class="grid grid-cols-3 gap-2">
-              <input v-model="newSplit.title" placeholder="款項項目 (例: 羊肉爐)" class="col-span-1 p-2 border rounded-xl text-xs outline-none bg-slate-50">
-              <input v-model.number="newSplit.amount" type="number" placeholder="總金額" class="col-span-1 p-2 border rounded-xl text-xs outline-none bg-slate-50 font-bold">
-              <input v-model.number="newSplit.customCount" type="number" placeholder="平分人數 (例: 8)" class="col-span-1 p-2 border border-indigo-200 rounded-xl text-xs outline-none bg-indigo-50/50 font-bold text-indigo-700">
+            <!-- 總金額獨立清楚整齊 -->
+            <div class="grid grid-cols-2 gap-2">
+              <input v-model="newSplit.title" placeholder="款項項目 (例: 羊肉爐)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50">
+              <input v-model.number="newSplit.amount" type="number" placeholder="總金額 (NT$)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50 font-bold">
             </div>
 
             <div class="grid grid-cols-2 gap-2">
@@ -317,22 +313,32 @@
                 </select>
               </div>
               <div>
-                <label class="block text-[10px] text-slate-400 mb-1">名冊快速填入</label>
+                <label class="block text-[10px] text-slate-400 mb-1">名冊快速帶入</label>
                 <button @click="selectAllMembers" type="button" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-medium transition">
                   全體名冊平分
                 </button>
               </div>
             </div>
 
-            <div>
-              <div class="flex justify-between items-center mb-1.5">
-                <label class="text-[10px] text-slate-500 font-medium">指定分攤成員（💡 人數多時可直接在上方填「平分人數」）：</label>
-                <button @click="clearParticipants" type="button" class="text-[10px] text-blue-600">清空勾選</button>
+            <!-- 🌟 平分人數直接放置於【分攤旅伴名冊】標題列 -->
+            <div class="p-3 bg-indigo-50/40 rounded-xl border border-indigo-100 space-y-2">
+              <div class="flex items-center justify-between">
+                <div class="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                  <span>👥</span> 分攤旅伴名冊
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[11px] font-bold text-indigo-800">平分人數:</span>
+                  <input v-model.number="newSplit.customCount" type="number" placeholder="例: 8" class="w-16 p-1 text-xs border border-indigo-300 rounded-lg text-center font-bold text-indigo-700 bg-white outline-none">
+                  <span class="text-[11px] text-slate-500">人</span>
+                  <button @click="clearParticipants" type="button" class="text-[10px] text-blue-600 ml-1">清空</button>
+                </div>
               </div>
-              <div class="grid grid-cols-3 gap-2">
-                <label v-for="m in splitMembers" :key="m" class="flex items-center gap-1.5 text-xs p-2 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer">
+
+              <!-- 名單勾選區 -->
+              <div class="grid grid-cols-3 gap-1.5 pt-1">
+                <label v-for="m in splitMembers" :key="m" class="flex items-center gap-1.5 text-xs p-1.5 bg-white rounded-lg border border-indigo-50 cursor-pointer">
                   <input type="checkbox" :value="m" v-model="newSplit.participants" @change="onParticipantToggled" class="w-3.5 h-3.5 text-indigo-600 rounded">
-                  <span class="truncate">{{ m }}</span>
+                  <span class="truncate text-[11px]">{{ m }}</span>
                 </label>
               </div>
             </div>
@@ -342,7 +348,7 @@
             </button>
           </div>
 
-          <!-- ⚡ 結算看板 (含人數平分、公費代墊、LINE 文字) -->
+          <!-- 結算彙整看板 -->
           <div class="bg-indigo-600 text-white p-4 rounded-2xl shadow-md space-y-3">
             <div class="flex justify-between items-center">
               <div class="text-xs font-bold flex items-center gap-1.5">
@@ -353,7 +359,6 @@
               </button>
             </div>
 
-            <!-- 公基金狀態 -->
             <div class="bg-white/15 p-3 rounded-xl space-y-1.5 text-xs backdrop-blur-sm border border-white/10">
               <div class="font-bold text-amber-200 flex items-center gap-1">
                 <span>💰</span> 公基金狀態
@@ -372,7 +377,6 @@
               </div>
             </div>
 
-            <!-- 公費代墊補貼 -->
             <div v-if="Object.keys(poolReimbursements).length > 0" class="space-y-1.5 pt-1">
               <div class="text-xs font-bold text-amber-200">💵 公基金應補貼給代墊人：</div>
               <div v-for="(amount, person) in poolReimbursements" :key="person" class="bg-amber-400/20 p-2.5 rounded-xl flex items-center justify-between text-xs backdrop-blur-sm border border-amber-300/30">
@@ -381,7 +385,6 @@
               </div>
             </div>
 
-            <!-- 🌟 直接打人數分攤的項目 -->
             <div v-if="directCountSplitLines.length > 0" class="space-y-1.5 pt-1">
               <div class="text-xs font-bold text-amber-200">👥 依人數均攤項目（請大家轉帳給代墊人）：</div>
               <div v-for="(line, idx) in directCountSplitLines" :key="idx" class="bg-white/20 p-2.5 rounded-xl text-xs backdrop-blur-sm border border-white/10">
@@ -389,7 +392,6 @@
               </div>
             </div>
 
-            <!-- 名冊私下對沖 -->
             <div class="space-y-1.5 pt-1">
               <div class="text-xs font-bold text-indigo-100">🤝 成員私下對沖互轉（非公費項目）：</div>
               <div v-if="settlementDirectives.length === 0" class="text-center py-2 text-xs text-indigo-200 bg-white/10 rounded-xl">
@@ -405,7 +407,7 @@
 
           </div>
 
-          <!-- 代墊明細清單 -->
+          <!-- 明細清單 -->
           <div>
             <div class="flex justify-between items-center mb-2 px-1">
               <div class="text-xs font-bold text-slate-600">【{{ currentTopic.name }}】款項明細 ({{ splitRecords.length }} 筆)</div>
@@ -483,7 +485,7 @@
 
       </main>
 
-      <!-- 底部五大固定導航欄 -->
+      <!-- 底部固定導航欄 -->
       <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200 grid grid-cols-5 py-2 z-40">
         <button @click="switchTab('records')" class="flex flex-col items-center py-1 text-xs" :class="currentTab === 'records' ? 'text-blue-600 font-bold' : 'text-slate-400'">
           <span class="text-base">📋</span>
@@ -561,7 +563,7 @@
         </div>
       </div>
 
-      <!-- 記帳明細修改彈窗 -->
+      <!-- 記帳修改彈窗 -->
       <div v-if="editingItem" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-3 shadow-2xl">
           <div class="text-sm font-bold text-slate-800">修改記錄</div>
@@ -630,7 +632,6 @@
         const shoppingList = ref([]);
         const isDataLoaded = ref(false);
 
-        // 主題模型
         const splitTopics = ref([]);
         const currentTopicId = ref('');
 
@@ -800,7 +801,6 @@
           setInterval(checkAndRefreshDay, 15 * 60 * 1000);
         });
 
-        // 🌟 即時動態試算：每人分攤多少
         const perPersonSplitPreview = computed(() => {
           const amt = Number(newSplit.value.amount) || 0;
           const cnt = Number(newSplit.value.customCount) || (newSplit.value.participants || []).length;
@@ -818,9 +818,9 @@
 
         const clearParticipants = () => {
           newSplit.value.participants = [];
+          newSplit.value.customCount = null;
         };
 
-        // 主題管理
         const addTopic = () => {
           const name = prompt('請輸入新分帳主題名稱：\n(例如: 2026 日本行、聚餐露營)', '新分帳主題');
           if (name && name.trim()) {
@@ -931,7 +931,6 @@
           newSplit.value.customCount = newSplit.value.participants.length;
         };
 
-        // 🌟 新增款項記錄（支援純打人數）
         const addSplitRecord = () => {
           if (!newSplit.value.title) return alert('請輸入項目名稱');
           if (!newSplit.value.amount || newSplit.value.amount <= 0) return alert('請輸入正確金額');
@@ -990,7 +989,6 @@
           return `${rec.participants.join('、')} (每人 NT$ ${perPerson})`;
         };
 
-        // 🌟 直接打人數的項目通知列表
         const directCountSplitLines = computed(() => {
           const lines = [];
           (currentTopic.value.records || [])
@@ -1002,7 +1000,6 @@
           return lines;
         });
 
-        // 名單成員對沖結算
         const settlementDirectives = computed(() => {
           const balances = {};
           (currentTopic.value.members || []).forEach(m => balances[m] = 0);
@@ -1011,7 +1008,7 @@
             const amount = Number(rec.amount) || 0;
             const participants = rec.participants || [];
             if (rec.payer && rec.payer.includes('公基金')) return;
-            if (rec.customCount && participants.length === 0) return; // 走純人數模式
+            if (rec.customCount && participants.length === 0) return;
 
             const count = rec.customCount || participants.length;
             if (count === 0 || amount <= 0) return;
@@ -1117,7 +1114,6 @@
           });
         };
 
-        // 語音記帳
         const startVoiceInput = () => {
           const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
           if (!SpeechRecognition) return alert('瀏覽器不支援語音辨識，請使用 Chrome 或 Safari。');
