@@ -99,7 +99,7 @@
               </div>
             </div>
 
-            <!-- 第二列：分類項目 (加入清楚小標題與預設提示) 與 幣別選擇 -->
+            <!-- 第二列：分類項目 與 結算幣別 -->
             <div class="grid grid-cols-2 gap-2">
               <div>
                 <label class="block text-[10px] text-slate-400 mb-0.5 px-0.5">分類項目</label>
@@ -248,7 +248,7 @@
             </div>
           </div>
 
-          <!-- 💰 公基金看板（三大均算數值呈現） -->
+          <!-- 💰 公基金看板 -->
           <div class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-4 rounded-2xl shadow-md space-y-3">
             <div class="flex justify-between items-center">
               <div class="text-xs font-bold flex items-center gap-1.5">
@@ -280,7 +280,7 @@
             </div>
           </div>
 
-          <!-- 🌟 卡片一：【👥 活動總人數與旅伴名冊】（獨立儲存人數，絕不要求填金額） -->
+          <!-- 卡片一：【👥 活動總人數與旅伴名冊】 -->
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
             <div class="flex items-center justify-between">
               <div class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
@@ -289,7 +289,6 @@
               <span class="text-[11px] text-indigo-600 font-bold">目前設定：{{ effectiveHeadcount }} 人</span>
             </div>
 
-            <!-- 活動人數輸入與專屬儲存按鈕 -->
             <div class="p-3 bg-indigo-50/40 rounded-xl border border-indigo-100 space-y-2">
               <div class="flex items-center justify-between gap-2">
                 <label class="text-xs font-bold text-indigo-950 shrink-0">活動參與總人數：</label>
@@ -302,7 +301,6 @@
                 </button>
               </div>
 
-              <!-- 三大均算看板即時提示 -->
               <div class="text-[10px] bg-white p-2 rounded-lg text-indigo-900 flex justify-between items-center font-medium border border-indigo-50">
                 <span>每人預繳: <strong>NT$ {{ depositPerPerson.toLocaleString() }}</strong></span>
                 <span>每人已扣: <strong>NT$ {{ spentPerPerson.toLocaleString() }}</strong></span>
@@ -310,7 +308,6 @@
               </div>
             </div>
 
-            <!-- 新增成員姓名（選填，適合少數名冊） -->
             <div class="space-y-1.5 pt-1 border-t border-slate-100">
               <div class="text-[11px] text-slate-400">若有特定名單可在此新增（人數多時直接在上方填總人數即可）：</div>
               <div class="flex gap-2">
@@ -328,7 +325,7 @@
             </div>
           </div>
 
-          <!-- 🌟 卡片二：【➕ 記錄開銷款項】（專門記錄花費，獨立儲存開銷） -->
+          <!-- 卡片二：【➕ 記錄開銷款項】 -->
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
             <div class="text-xs font-bold text-slate-800 flex justify-between items-center">
               <span>➕ 記錄開銷款項</span>
@@ -337,13 +334,11 @@
               </span>
             </div>
 
-            <!-- 款項項目與總金額 -->
             <div class="grid grid-cols-2 gap-2">
               <input v-model="newSplit.title" placeholder="項目 (選填，留空帶入時間)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50">
               <input v-model.number="newSplit.amount" type="number" placeholder="總金額 (NT$)" class="p-2 border rounded-xl text-xs outline-none bg-slate-50 font-bold">
             </div>
 
-            <!-- 誰先付款 -->
             <div>
               <label class="block text-[10px] text-slate-400 mb-1">誰先付款 / 付款來源</label>
               <select v-model="newSplit.payer" class="w-full p-2 border rounded-xl text-xs bg-slate-50 font-semibold text-slate-700">
@@ -352,7 +347,6 @@
               </select>
             </div>
 
-            <!-- 平分方式 -->
             <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
               <div class="flex items-center justify-between text-xs">
                 <span class="text-[11px] font-bold text-slate-700">此筆平分人數：</span>
@@ -362,7 +356,6 @@
                 </div>
               </div>
 
-              <!-- 若有名冊成員可勾選特定人 -->
               <div v-if="splitMembers.length > 0" class="pt-1 border-t border-slate-200">
                 <div class="flex justify-between items-center mb-1">
                   <span class="text-[10px] text-slate-400">或勾選特定分攤成員：</span>
@@ -377,7 +370,6 @@
               </div>
             </div>
 
-            <!-- 專屬開銷儲存按鈕 -->
             <button @click="addSplitRecord" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-sm active:scale-[0.99] transition flex items-center justify-center gap-1.5">
               <span>💾</span>
               <span>+ 儲存這筆開銷（更新公基金支出）</span>
@@ -552,7 +544,7 @@
         <span>🛒</span> 採購清單
       </button>
 
-      <!-- 採購清單彈窗 -->
+      <!-- 🛒 採購清單彈窗 -->
       <div v-if="showShoppingModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl max-w-sm w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
           <div class="p-4 bg-slate-50 border-b flex justify-between items-center">
@@ -592,11 +584,48 @@
                   {{ item.cycle === 'weekly' ? '每週' : (item.cycle === 'monthly' ? '每月' : '其他') }}
                 </span>
               </label>
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-1.5">
                 <span class="text-xs font-semibold text-slate-600">NT$ {{ item.price }}</span>
-                <button @click="deleteShoppingItem(idx)" class="text-slate-300 hover:text-rose-500 text-xs px-1">✕</button>
+                <!-- 🌟 新增採購修改按鈕 -->
+                <button @click.stop="openEditShopModal(item)" class="text-slate-400 hover:text-blue-600 text-xs px-1" title="修改品項">✏️</button>
+                <button @click.stop="deleteShoppingItem(idx)" class="text-slate-300 hover:text-rose-500 text-xs px-1" title="刪除品項">✕</button>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 🌟 採購品項修改彈窗 -->
+      <div v-if="editingShopItem" class="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-5 space-y-3 shadow-2xl">
+          <div class="text-sm font-bold text-slate-800 flex justify-between items-center">
+            <span>✏️ 修改採購品項</span>
+            <button @click="editingShopItem = null" class="text-slate-400 text-base">✕</button>
+          </div>
+
+          <div>
+            <label class="text-[10px] text-slate-400">品項名稱</label>
+            <input v-model="editingShopItem.name" class="w-full p-2 border rounded-xl text-xs bg-slate-50 outline-none font-bold">
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[10px] text-slate-400">採購週期</label>
+              <select v-model="editingShopItem.cycle" class="w-full p-2 border rounded-xl text-xs bg-slate-50 font-medium">
+                <option value="weekly">每週</option>
+                <option value="monthly">每月</option>
+                <option value="other">其他</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[10px] text-slate-400">預估金額 (NT$)</label>
+              <input v-model.number="editingShopItem.price" type="number" class="w-full p-2 border rounded-xl text-xs bg-slate-50 outline-none font-bold">
+            </div>
+          </div>
+
+          <div class="flex gap-2 pt-2">
+            <button @click="deleteEditingShopItem" class="flex-1 py-2 bg-rose-50 text-rose-600 rounded-xl font-bold text-xs">刪除品項</button>
+            <button @click="saveEditingShopItem" class="flex-1 py-2 bg-blue-600 text-white rounded-xl font-bold text-xs">保存修改</button>
           </div>
         </div>
       </div>
@@ -699,6 +728,7 @@
 
         const showShoppingModal = ref(false);
         const editingItem = ref(null);
+        const editingShopItem = ref(null); // 🌟 編輯採購品項的響應式狀態
         const newCategoryName = ref('');
 
         const isListening = ref(false);
@@ -766,7 +796,15 @@
               transactions.value = val.transactions || [];
               if (val.categories && val.categories.length > 0) categories.value = val.categories;
               if (val.categoryBudgets) categoryBudgets.value = val.categoryBudgets;
-              shoppingList.value = val.shoppingList || [];
+              
+              // 確保每筆採購資料都有唯一 ID
+              shoppingList.value = (val.shoppingList || []).map((item, idx) => ({
+                id: item.id || Date.now() + idx,
+                name: item.name || '',
+                cycle: item.cycle || 'weekly',
+                price: Number(item.price) || 0,
+                done: !!item.done
+              }));
 
               if (val.splitTopics && val.splitTopics.length > 0) {
                 splitTopics.value = val.splitTopics.map(t => ({
@@ -1352,11 +1390,13 @@
           saveCloudData();
         };
 
+        // 採購清單試算與方法
         const weeklyShoppingCost = computed(() => shoppingList.value.filter(i => i.cycle === 'weekly').reduce((s, i) => s + Number(i.price || 0), 0));
         const monthlyShoppingCost = computed(() => {
           const mItems = shoppingList.value.filter(i => i.cycle === 'monthly').reduce((s, i) => s + Number(i.price || 0), 0);
           return (weeklyShoppingCost.value * 4) + mItems;
         });
+
         const addShoppingItem = () => {
           if (!newShopItem.value.name) return alert('請輸入品項');
           shoppingList.value.push({
@@ -1370,9 +1410,34 @@
           newShopItem.value.price = null;
           saveCloudData();
         };
+
         const deleteShoppingItem = (idx) => {
           shoppingList.value.splice(idx, 1);
           saveCloudData();
+        };
+
+        // 🌟 開啟採購品項修改彈窗
+        const openEditShopModal = (item) => {
+          editingShopItem.value = { ...item };
+        };
+
+        // 🌟 儲存採購品項修改
+        const saveEditingShopItem = () => {
+          if (!editingShopItem.value) return;
+          const idx = shoppingList.value.findIndex(i => i.id === editingShopItem.value.id);
+          if (idx !== -1) {
+            shoppingList.value[idx] = { ...editingShopItem.value };
+            saveCloudData();
+          }
+          editingShopItem.value = null;
+        };
+
+        // 🌟 在修改彈窗中刪除採購品項
+        const deleteEditingShopItem = () => {
+          if (!editingShopItem.value) return;
+          shoppingList.value = shoppingList.value.filter(i => i.id !== editingShopItem.value.id);
+          saveCloudData();
+          editingShopItem.value = null;
         };
 
         const renderChart = () => {
@@ -1408,13 +1473,13 @@
 
         return {
           currentTab, transactions, categories, categoryBudgets, shoppingList,
-          showShoppingModal, editingItem, newCategoryName, form, newShopItem,
+          showShoppingModal, editingItem, editingShopItem, newCategoryName, form, newShopItem,
           selectedMonth, monthList, currentMonthIncome, currentMonthExpense, remainingBudget,
           filteredTransactions, loadCloudData, switchTab, resetToToday,
           addTransaction, openEditModal, saveEditingItem, deleteEditingItem,
           getCategorySpent, getBudgetPercent, getBudgetColor, updateBudget,
           addCategory, removeCategory, weeklyShoppingCost, monthlyShoppingCost,
-          addShoppingItem, deleteShoppingItem, saveCloudData,
+          addShoppingItem, deleteShoppingItem, openEditShopModal, saveEditingShopItem, deleteEditingShopItem, saveCloudData,
           onCurrencyChange, calcTwdAmount, isListening, voiceNotice, startVoiceInput,
           splitTopics, currentTopicId, currentTopic, splitMembers, splitRecords, effectiveHeadcount,
           saveTopicHeadcount,
