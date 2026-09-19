@@ -81,6 +81,7 @@
               </div>
             </div>
 
+            <!-- 第一列：記帳日期 與 收支類型 -->
             <div class="grid grid-cols-2 gap-2">
               <div>
                 <div class="flex justify-between items-center mb-0.5 px-0.5">
@@ -90,7 +91,7 @@
                 <input v-model="form.date" type="date" class="w-full p-2 border rounded-xl text-xs bg-slate-50 font-medium text-slate-700 outline-none">
               </div>
               <div>
-                <label class="block text-[10px] text-slate-400 mb-0.5 px-0.5">類型</label>
+                <label class="block text-[10px] text-slate-400 mb-0.5 px-0.5">收支類型</label>
                 <select v-model="form.type" class="w-full p-2 border rounded-xl text-xs bg-slate-50 font-bold" :class="form.type === '收入' ? 'text-emerald-600' : 'text-slate-800'">
                   <option value="支出">支出</option>
                   <option value="收入">收入</option>
@@ -98,17 +99,25 @@
               </div>
             </div>
 
+            <!-- 第二列：分類項目 (加入清楚小標題與預設提示) 與 幣別選擇 -->
             <div class="grid grid-cols-2 gap-2">
-              <select v-model="form.category" class="p-2 border rounded-xl text-xs bg-slate-50 font-medium">
-                <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
-              </select>
-              <select v-model="form.currency" @change="onCurrencyChange" class="p-2 border rounded-xl text-xs bg-blue-50 text-blue-700 font-bold">
-                <option value="TWD">NT$ 台幣</option>
-                <option value="JPY">¥ 日圓 (JPY)</option>
-                <option value="USD">$ 美金 (USD)</option>
-                <option value="KRW">₩ 韓元 (KRW)</option>
-                <option value="EUR">€ 歐元 (EUR)</option>
-              </select>
+              <div>
+                <label class="block text-[10px] text-slate-400 mb-0.5 px-0.5">分類項目</label>
+                <select v-model="form.category" class="w-full p-2 border rounded-xl text-xs bg-slate-50 font-semibold text-slate-700 outline-none">
+                  <option value="" disabled>🏷️ 選擇分類項目</option>
+                  <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] text-slate-400 mb-0.5 px-0.5">結算幣別</label>
+                <select v-model="form.currency" @change="onCurrencyChange" class="w-full p-2 border rounded-xl text-xs bg-blue-50 text-blue-700 font-bold outline-none">
+                  <option value="TWD">NT$ 台幣</option>
+                  <option value="JPY">¥ 日圓 (JPY)</option>
+                  <option value="USD">$ 美金 (USD)</option>
+                  <option value="KRW">₩ 韓元 (KRW)</option>
+                  <option value="EUR">€ 歐元 (EUR)</option>
+                </select>
+              </div>
             </div>
 
             <div v-if="form.currency === 'TWD'" class="grid grid-cols-2 gap-2">
@@ -271,7 +280,7 @@
             </div>
           </div>
 
-          <!-- 🌟 卡片一：【👥 活動總人數與旅伴名冊】（獨立儲存人數，絕不要求填金額！） -->
+          <!-- 🌟 卡片一：【👥 活動總人數與旅伴名冊】（獨立儲存人數，絕不要求填金額） -->
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
             <div class="flex items-center justify-between">
               <div class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
@@ -319,7 +328,7 @@
             </div>
           </div>
 
-          <!-- 🌟 卡片二：【➕ 記錄開銷款項】（專門記錄花費，獨立儲存開銷！） -->
+          <!-- 🌟 卡片二：【➕ 記錄開銷款項】（專門記錄花費，獨立儲存開銷） -->
           <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
             <div class="text-xs font-bold text-slate-800 flex justify-between items-center">
               <span>➕ 記錄開銷款項</span>
@@ -679,7 +688,6 @@
         const splitMembers = computed(() => currentTopic.value.members || []);
         const splitRecords = computed(() => currentTopic.value.records || []);
 
-        // 🌟 有效總人數：優先取自訂總人數，其次取名單成員數
         const effectiveHeadcount = computed(() => {
           const tc = Number(currentTopic.value.totalCount);
           if (tc && tc > 0) return tc;
@@ -756,7 +764,7 @@
             if (res.ok) {
               const val = await res.json() || {};
               transactions.value = val.transactions || [];
-              if (val.categories) categories.value = val.categories;
+              if (val.categories && val.categories.length > 0) categories.value = val.categories;
               if (val.categoryBudgets) categoryBudgets.value = val.categoryBudgets;
               shoppingList.value = val.shoppingList || [];
 
@@ -839,7 +847,6 @@
           setInterval(checkAndRefreshDay, 15 * 60 * 1000);
         });
 
-        // 🌟 獨立儲存活動總人數（不要求填金額！）
         const saveTopicHeadcount = () => {
           const count = Number(currentTopic.value.totalCount);
           if (!count || count <= 0) {
@@ -990,7 +997,6 @@
           saveCloudData();
         };
 
-        // 🌟 獨立儲存開銷記錄
         const addSplitRecord = () => {
           if (!newSplit.value.amount || newSplit.value.amount <= 0) {
             return alert('請輸入有效金額！');
@@ -1009,7 +1015,6 @@
           const payer = newSplit.value.payer || '💰 公基金現金';
           const participants = [...(newSplit.value.participants || [])];
           
-          // 如果沒勾成員也沒特別打人數，預設代入主題總人數
           let customCount = newSplit.value.customCount ? Number(newSplit.value.customCount) : null;
           if (!customCount && participants.length === 0 && effectiveHeadcount.value > 0) {
             customCount = effectiveHeadcount.value;
@@ -1282,7 +1287,7 @@
             id: Date.now().toString(),
             date: recordDate,
             type: form.value.type,
-            category: form.value.category,
+            category: form.value.category || (categories.value.length > 0 ? categories.value[0] : '餐飲飲食'),
             currency: form.value.currency,
             foreignAmount: form.value.currency !== 'TWD' ? Number(form.value.foreignAmount) : null,
             rate: form.value.currency !== 'TWD' ? Number(form.value.rate) : null,
